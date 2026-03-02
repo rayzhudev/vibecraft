@@ -29,6 +29,7 @@ test-results/
 .e2e-dist-*/
 .mcp-dist-*/
 .perf-dist-*/
+history/perf/*.json
 coverage/
 
 # Logs

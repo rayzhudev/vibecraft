@@ -20,7 +20,7 @@
     "typecheck:tests": "tsc --noEmit --project tsconfig.tests.json",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "check": "bun run typecheck && bun run lint && bun run format",
+    "check": "bun run typecheck && bun run lint && bun run format:check",
     "format:check": "prettier --check .",
     "preview": "vite preview",
     "package": "bun run build && bun run build:mcp && bun ./scripts/package-app.mjs",

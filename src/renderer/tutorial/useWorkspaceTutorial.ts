@@ -85,6 +85,8 @@ export type WorkspaceTutorialCore = {
   dismissedTutorialOverlayStepId: string | null;
   dismissTutorialCompletion: () => void;
   advanceHeroIntro: () => void;
+  advanceFocusDemoStep: () => void;
+  completeFocusDemo: () => void;
   updateTutorial: (updates: Partial<TutorialState>) => void;
   ensureTutorialServer: (scenario: TutorialScenario) => Promise<boolean>;
   tutorialPromptRunId: string | null;
@@ -106,7 +108,7 @@ export type WorkspaceTutorialCore = {
   handleRenameCancel: () => void;
   handleRenamePickOption: (relativePath: string) => Promise<void>;
   createFolder: (name: string, x: number, y: number) => Promise<CommandRunResult>;
-  createBrowser: (x: number, y: number) => Promise<CommandRunResult>;
+  createBrowser: (x: number, y: number, originFolderId?: string) => Promise<CommandRunResult>;
   handleBrowserUrlChange: (id: string, url: string) => Promise<CommandRunResult>;
   handleBrowserClose: (id: string) => Promise<CommandRunResult>;
   handleBrowserMove: (id: string, x: number, y: number) => Promise<CommandRunResult>;
@@ -259,7 +261,7 @@ export const useWorkspaceTutorialCore = ({
       if (existing) return existing;
       const promise = workspaceClient
         .ensureTutorialDevServer(workspace.path, scenario)
-        .then((success) => {
+        .then((success: boolean) => {
           const ok = success !== false;
           if (!ok) {
             const port = scenario === 'cookie-clicker' ? 3000 : 3001;
@@ -271,7 +273,7 @@ export const useWorkspaceTutorialCore = ({
           }
           return ok;
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           const port = scenario === 'cookie-clicker' ? 3000 : 3001;
           const detail = error instanceof Error ? error.message : String(error);
           setMessageDialog({
@@ -464,6 +466,23 @@ export const useWorkspaceTutorialCore = ({
       doodleJumpCompletionTimeoutRef.current = null;
     }
     doodleJumpCompletionDeadlineRef.current = null;
+    // Advance to focus demo instead of immediately completing
+    updateTutorial({ stepId: 'focus-demo-1' });
+  }, [tutorialEnabled, updateTutorial]);
+
+  const advanceFocusDemoStep = useCallback(() => {
+    if (!tutorialEnabled) return;
+    if (tutorialStepRef.current === 'focus-demo-1') {
+      updateTutorial({ stepId: 'focus-demo-2' });
+    } else if (tutorialStepRef.current === 'focus-demo-2') {
+      updateTutorial({ stepId: 'focus-explain' });
+    } else if (tutorialStepRef.current === 'focus-explain') {
+      updateTutorial({ stepId: 'import-prompt' });
+    }
+  }, [tutorialEnabled, updateTutorial]);
+
+  const completeFocusDemo = useCallback(() => {
+    if (!tutorialEnabled) return;
     setTutorialCompletionVisible(true);
     completeTutorial();
   }, [completeTutorial, tutorialEnabled]);
@@ -1121,7 +1140,7 @@ export const useWorkspaceTutorialCore = ({
     [baseHandleTerminalResizeEnd, tutorialEnabled]
   );
 
-  const createBrowser = async (x: number, y: number) => {
+  const createBrowser = async (x: number, y: number, originFolderId?: string) => {
     if (tutorialEnabled && tutorialBrowserId2) {
       return okResult();
     }
@@ -1155,7 +1174,8 @@ export const useWorkspaceTutorialCore = ({
           spawnX,
           spawnY,
           DEFAULT_BROWSER_SIZE.width,
-          DEFAULT_BROWSER_SIZE.height
+          DEFAULT_BROWSER_SIZE.height,
+          tutorialState.createdIds?.folderId2
         );
         if (result.success && result.panel) {
           const panel = result.panel;
@@ -1207,7 +1227,12 @@ export const useWorkspaceTutorialCore = ({
       spawnX,
       spawnY,
       DEFAULT_BROWSER_SIZE.width,
-      DEFAULT_BROWSER_SIZE.height
+      DEFAULT_BROWSER_SIZE.height,
+      tutorialEnabled
+        ? tutorialState.stepId === 'open-browser-2'
+          ? tutorialState.createdIds?.folderId2
+          : tutorialState.createdIds?.folderId
+        : originFolderId
     );
     if (result.success && result.panel) {
       const panel = result.panel;
@@ -1272,12 +1297,6 @@ export const useWorkspaceTutorialCore = ({
       }
     }
   }, [folders, tutorialEnabled, tutorialFolderId, tutorialFolderId2, tutorialState.stepId, updateTutorial]);
-
-  useEffect(() => {
-    if (!tutorialEnabled || tutorialState.stepId !== 'hero-provider') return;
-    if (!settings.heroProvider) return;
-    updateTutorial({ stepId: 'hero-intro' });
-  }, [settings.heroProvider, tutorialEnabled, tutorialState.stepId, updateTutorial]);
 
   const advanceHeroIntro = useCallback(() => {
     if (!tutorialEnabled || tutorialState.stepId !== 'hero-intro') return;
@@ -1608,6 +1627,8 @@ export const useWorkspaceTutorialCore = ({
     dismissedTutorialOverlayStepId,
     dismissTutorialCompletion,
     advanceHeroIntro,
+    advanceFocusDemoStep,
+    completeFocusDemo,
     updateTutorial,
     ensureTutorialServer,
     tutorialPromptRunId,

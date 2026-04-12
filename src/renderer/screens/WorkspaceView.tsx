@@ -16,7 +16,7 @@ interface WorkspaceViewProps {
 
 export default function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
   const controller = useWorkspaceController({ workspace, onBack });
-  const { tutorialState, advanceHeroIntro } = controller;
+  const { tutorialState, advanceHeroIntro, advanceFocusDemoStep } = controller;
   const spotlightPolicy = getTutorialSpotlightPolicy(tutorialState, {
     heroProvider: controller.hero.provider,
     renameState: controller.renameState,
@@ -46,6 +46,24 @@ export default function WorkspaceView({ workspace, onBack }: WorkspaceViewProps)
       window.removeEventListener('pointerdown', handlePointer);
     };
   }, [advanceHeroIntro, tutorialState.stepId]);
+
+  useEffect(() => {
+    if (tutorialState.stepId !== 'focus-demo-1' && tutorialState.stepId !== 'focus-explain') return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      advanceFocusDemoStep();
+    };
+    const handlePointer = () => {
+      advanceFocusDemoStep();
+    };
+    window.addEventListener('keydown', handleKey);
+    window.addEventListener('pointerdown', handlePointer);
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+      window.removeEventListener('pointerdown', handlePointer);
+    };
+  }, [advanceFocusDemoStep, tutorialState.stepId]);
 
   useEffect(() => {
     if (window.electronAPI.isTestMode) {

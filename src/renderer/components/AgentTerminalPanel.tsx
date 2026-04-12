@@ -14,6 +14,7 @@ import type {
   AgentModelInfo,
   AgentProvider,
   AgentStatus,
+  SelectedAgentFile,
   AgentTerminalEntry,
   AgentTerminalPanelBounds,
   AgentTerminalViewState,
@@ -104,6 +105,8 @@ interface AgentTerminalPanelProps {
   attachedRelativePath?: string;
   runCommand: (command: CommandInvocation) => Promise<CommandRunResult>;
   onClose: () => void;
+  forcedBounds?: { x: number; y: number; width: number; height: number };
+  embedded?: boolean;
 }
 
 const createId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -112,6 +115,26 @@ const formatTokens = (value?: number | null): string => {
   if (value === undefined || value === null) return '—';
   return formatTokensCore(value);
 };
+const inferMultimodalSupport = (
+  provider: AgentProvider,
+  model: string,
+  recentModels: AgentModelInfo[] | null
+): boolean => {
+  const modelInfo = recentModels?.find((entry) => entry.id === model);
+  if (typeof modelInfo?.supportsMultimodalInput === 'boolean') {
+    return modelInfo.supportsMultimodalInput;
+  }
+  return provider === 'claude' || provider === 'codex' || provider === 'cursor';
+};
+
+const buildPromptWithFiles = (prompt: string, files: SelectedAgentFile[]): string => {
+  const trimmed = prompt.trim();
+  if (files.length === 0) return trimmed;
+  const intro = trimmed || 'Review the selected files and respond based on them.';
+  const fileLines = files.map((file) => `- ${file.relativePath ?? file.path}`);
+  return `${intro}\n\nSelected files:\n${fileLines.join('\n')}`;
+};
+
 export default function AgentTerminalPanel({
   agentId,
   agentName,
@@ -126,6 +149,8 @@ export default function AgentTerminalPanel({
   attachedRelativePath,
   runCommand,
   onClose,
+  forcedBounds,
+  embedded = false,
 }: AgentTerminalPanelProps) {
   const appSettings = useAppSettings();
   const [entries, setEntries] = useState<ChatEntry[]>([]);
@@ -147,6 +172,7 @@ export default function AgentTerminalPanel({
     agentReasoningEffort ?? null
   );
   const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<SelectedAgentFile[]>([]);
   const summaryText = agentSummary?.trim();
   const [recentModels, setRecentModels] = useState<AgentModelInfo[] | null>(null);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -228,6 +254,8 @@ export default function AgentTerminalPanel({
 
   const canStream = agentProvider === 'claude' || agentProvider === 'codex' || agentProvider === 'cursor';
   const inputEnabled = Boolean(attachedRelativePath && canStream);
+  const effectiveBounds = forcedBounds ?? panelBounds;
+  const supportsFileSelection = inferMultimodalSupport(agentProvider, currentModel, recentModels);
 
   useEffect(() => {
     setCurrentModel(agentModel);
@@ -281,6 +309,7 @@ export default function AgentTerminalPanel({
       clearTimeout(viewStateSaveTimerRef.current);
       viewStateSaveTimerRef.current = null;
     }
+    setSelectedFiles([]);
   }, [agentId]);
 
   useEffect(() => {
@@ -593,6 +622,7 @@ export default function AgentTerminalPanel({
 
   const handleResizeStart = useCallback(
     (edge: ResizeEdge) => (e: MouseEvent) => {
+      if (embedded) return;
       e.preventDefault();
       e.stopPropagation();
       resizingRef.current = {
@@ -604,11 +634,12 @@ export default function AgentTerminalPanel({
       document.body.style.cursor = getCursorForEdge(edge);
       document.body.style.userSelect = 'none';
     },
-    [panelBounds]
+    [embedded, panelBounds]
   );
 
   const handleDragStart = useCallback(
     (e: MouseEvent) => {
+      if (embedded) return;
       e.preventDefault();
       e.stopPropagation();
       draggingRef.current = {
@@ -620,7 +651,7 @@ export default function AgentTerminalPanel({
       document.body.style.cursor = 'move';
       document.body.style.userSelect = 'none';
     },
-    [panelBounds]
+    [embedded, panelBounds]
   );
 
   useEffect(() => {
@@ -1597,19 +1628,40 @@ export default function AgentTerminalPanel({
   );
 
   const submitPrompt = useCallback(async () => {
-    const prompt = inputValue.trim();
-    if (!prompt) return;
+    const prompt = buildPromptWithFiles(inputValue, selectedFiles);
+    if (!prompt.trim()) return;
     if (!attachedRelativePath || !canStream) {
       return;
     }
     if (runActive) {
       enqueuePrompt(prompt);
       setInputValue('');
+      setSelectedFiles([]);
       return;
     }
     setInputValue('');
+    setSelectedFiles([]);
     await runPrompt(prompt);
-  }, [inputValue, attachedRelativePath, canStream, runActive, enqueuePrompt, runPrompt]);
+  }, [inputValue, selectedFiles, attachedRelativePath, canStream, runActive, enqueuePrompt, runPrompt]);
+
+  const handlePickFiles = useCallback(async () => {
+    const files = await window.electronAPI.selectAgentFiles(workspacePath, {
+      title: 'Select Files for Agent',
+    });
+    if (!files.length) return;
+    setSelectedFiles((prev) => {
+      const next = new Map(prev.map((file) => [file.path, file]));
+      files.forEach((file) => next.set(file.path, file));
+      return Array.from(next.values());
+    });
+    if (files.some((file) => !file.inWorkspace)) {
+      addSystemMessage('External files will be referenced by absolute path.');
+    }
+  }, [workspacePath, addSystemMessage]);
+
+  const handleRemoveSelectedFile = useCallback((filePath: string) => {
+    setSelectedFiles((prev) => prev.filter((file) => file.path !== filePath));
+  }, []);
 
   const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -1783,10 +1835,10 @@ export default function AgentTerminalPanel({
       className="agent-terminal-panel agent-terminal-overlay"
       style={{
         position: 'fixed',
-        left: panelBounds.x,
-        top: panelBounds.y,
-        width: panelBounds.width,
-        height: panelBounds.height,
+        left: effectiveBounds.x,
+        top: effectiveBounds.y,
+        width: effectiveBounds.width,
+        height: effectiveBounds.height,
         zIndex: 4000,
       }}
       onMouseDown={(e) => {
@@ -1799,41 +1851,49 @@ export default function AgentTerminalPanel({
       data-agent-id={agentId}
       data-tutorial-target="agent-terminal"
     >
-      {/* Resize handles */}
-      <div
-        className="agent-terminal-resize-handle agent-terminal-resize-left"
-        onMouseDown={handleResizeStart('left')}
-      />
-      <div
-        className="agent-terminal-resize-handle agent-terminal-resize-right"
-        onMouseDown={handleResizeStart('right')}
-      />
-      <div
-        className="agent-terminal-resize-handle agent-terminal-resize-top"
-        onMouseDown={handleResizeStart('top')}
-      />
-      <div
-        className="agent-terminal-resize-handle agent-terminal-resize-bottom"
-        onMouseDown={handleResizeStart('bottom')}
-      />
-      <div
-        className="agent-terminal-resize-handle agent-terminal-resize-top-left"
-        onMouseDown={handleResizeStart('top-left')}
-      />
-      <div
-        className="agent-terminal-resize-handle agent-terminal-resize-top-right"
-        onMouseDown={handleResizeStart('top-right')}
-      />
-      <div
-        className="agent-terminal-resize-handle agent-terminal-resize-bottom-left"
-        onMouseDown={handleResizeStart('bottom-left')}
-      />
-      <div
-        className="agent-terminal-resize-handle agent-terminal-resize-bottom-right"
-        onMouseDown={handleResizeStart('bottom-right')}
-      />
+      {!embedded && (
+        <>
+          {/* Resize handles */}
+          <div
+            className="agent-terminal-resize-handle agent-terminal-resize-left"
+            onMouseDown={handleResizeStart('left')}
+          />
+          <div
+            className="agent-terminal-resize-handle agent-terminal-resize-right"
+            onMouseDown={handleResizeStart('right')}
+          />
+          <div
+            className="agent-terminal-resize-handle agent-terminal-resize-top"
+            onMouseDown={handleResizeStart('top')}
+          />
+          <div
+            className="agent-terminal-resize-handle agent-terminal-resize-bottom"
+            onMouseDown={handleResizeStart('bottom')}
+          />
+          <div
+            className="agent-terminal-resize-handle agent-terminal-resize-top-left"
+            onMouseDown={handleResizeStart('top-left')}
+          />
+          <div
+            className="agent-terminal-resize-handle agent-terminal-resize-top-right"
+            onMouseDown={handleResizeStart('top-right')}
+          />
+          <div
+            className="agent-terminal-resize-handle agent-terminal-resize-bottom-left"
+            onMouseDown={handleResizeStart('bottom-left')}
+          />
+          <div
+            className="agent-terminal-resize-handle agent-terminal-resize-bottom-right"
+            onMouseDown={handleResizeStart('bottom-right')}
+          />
+        </>
+      )}
 
-      <div className="agent-terminal-header" onMouseDown={handleDragStart} style={{ cursor: 'move' }}>
+      <div
+        className="agent-terminal-header"
+        onMouseDown={handleDragStart}
+        style={{ cursor: embedded ? 'default' : 'move' }}
+      >
         <button
           className="agent-terminal-close"
           onClick={onClose}
@@ -2094,43 +2154,70 @@ export default function AgentTerminalPanel({
           </div>
         </div>
         <div className="agent-chat-input">
-          <textarea
-            ref={inputRef}
-            className="agent-chat-input-field"
-            placeholder={
-              inputEnabled
-                ? runActive
-                  ? 'Queue a follow-up…'
-                  : 'Ask the agent to do something…'
-                : 'Attach the agent to a folder to chat'
-            }
-            value={inputValue}
-            onChange={(event) => {
-              draftDirtyRef.current = true;
-              setInputValue(event.target.value);
-            }}
-            onKeyDown={handleInputKeyDown}
-            disabled={!inputEnabled}
-            rows={1}
-          />
-          <div className="agent-chat-input-actions">
-            {runActive && (
-              <button
-                className="agent-chat-cancel"
-                onClick={() => void cancelRun()}
-                aria-label="Cancel run"
-                type="button"
-              >
-                Cancel
+          {supportsFileSelection && inputEnabled && (
+            <div className="agent-chat-file-strip">
+              <button className="agent-chat-file-btn" type="button" onClick={() => void handlePickFiles()}>
+                Add Files
               </button>
-            )}
-            <button
-              className="agent-chat-send"
-              onClick={() => void submitPrompt()}
-              disabled={!inputEnabled || !inputValue.trim()}
-            >
-              {runActive ? 'Queue' : 'Send'}
-            </button>
+              {selectedFiles.length > 0 && (
+                <div className="agent-chat-file-list">
+                  {selectedFiles.map((file) => (
+                    <span key={file.path} className="agent-chat-file-pill">
+                      <span className="agent-chat-file-pill-label">{file.relativePath ?? file.name}</span>
+                      {!file.inWorkspace && <span className="agent-chat-file-pill-badge">External</span>}
+                      <button
+                        type="button"
+                        className="agent-chat-file-pill-remove"
+                        aria-label={`Remove ${file.name}`}
+                        onClick={() => handleRemoveSelectedFile(file.path)}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <div className="agent-chat-input-main">
+            <textarea
+              ref={inputRef}
+              className="agent-chat-input-field"
+              placeholder={
+                inputEnabled
+                  ? runActive
+                    ? 'Queue a follow-up…'
+                    : 'Ask the agent to do something…'
+                  : 'Attach the agent to a folder to chat'
+              }
+              value={inputValue}
+              onChange={(event) => {
+                draftDirtyRef.current = true;
+                setInputValue(event.target.value);
+              }}
+              onKeyDown={handleInputKeyDown}
+              disabled={!inputEnabled}
+              rows={1}
+            />
+            <div className="agent-chat-input-actions">
+              {runActive && (
+                <button
+                  className="agent-chat-cancel"
+                  onClick={() => void cancelRun()}
+                  aria-label="Cancel run"
+                  type="button"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                className="agent-chat-send"
+                onClick={() => void submitPrompt()}
+                disabled={!inputEnabled || (!inputValue.trim() && selectedFiles.length === 0)}
+              >
+                {runActive ? 'Queue' : 'Send'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -6,6 +6,7 @@ import type {
 
 interface PerformanceOverlayProps {
   visible: boolean;
+  onToggle?: () => void;
   frame: FrameDiagnosticsSnapshot;
   render: RenderDiagnosticsSnapshot;
   tier: PerformanceTier;
@@ -21,6 +22,7 @@ const formatNumber = (value: number, fractionDigits = 1): string => value.toFixe
 
 export default function PerformanceOverlay({
   visible,
+  onToggle,
   frame,
   render,
   tier,
@@ -36,9 +38,21 @@ export default function PerformanceOverlay({
     >
       <header className="workspace-performance-title">
         <span>Performance</span>
-        <span className={`workspace-performance-tier tier-${tier}`}>
-          {tier === 'reduced' ? 'reduced fx' : 'normal fx'}
-        </span>
+        <div className="workspace-performance-header-actions">
+          <span className={`workspace-performance-tier tier-${tier}`}>
+            {tier === 'reduced' ? 'reduced fx' : 'normal fx'}
+          </span>
+          {onToggle && (
+            <button
+              type="button"
+              className="workspace-performance-close"
+              onClick={onToggle}
+              title="Hide performance overlay"
+            >
+              Hide
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="workspace-performance-grid">

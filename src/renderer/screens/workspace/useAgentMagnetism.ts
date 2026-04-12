@@ -8,12 +8,15 @@ import {
   isOutsideGravity,
 } from './attachLayout';
 
+type LayoutOverride = { x: number; y: number; width?: number; height?: number };
+
 type DragEndData = { pos: Position; dragDistance: number };
 type AgentMove = { id: string; x: number; y: number };
 
 type UseAgentMagnetismParams = {
   agents: Agent[];
   folders: Folder[];
+  positionOverrides?: Map<string, LayoutOverride>;
   setAgents: React.Dispatch<React.SetStateAction<Agent[]>>;
   persistAgentPosition: (id: string, x: number, y: number) => Promise<CommandRunResult>;
   attachAgentToFolder: (
@@ -40,6 +43,7 @@ const errorResult = (error: string): CommandRunResult => ({ ok: false, error });
 export function useAgentMagnetism({
   agents,
   folders,
+  positionOverrides,
   setAgents,
   persistAgentPosition,
   attachAgentToFolder,
@@ -62,8 +66,15 @@ export function useAgentMagnetism({
   }, [agents]);
 
   useEffect(() => {
-    foldersRef.current = folders;
-  }, [folders]);
+    if (positionOverrides && positionOverrides.size > 0) {
+      foldersRef.current = folders.map((f) => {
+        const p = positionOverrides.get(f.id);
+        return p ? { ...f, x: p.x, y: p.y } : f;
+      });
+    } else {
+      foldersRef.current = folders;
+    }
+  }, [folders, positionOverrides]);
 
   const updateMagnetizedFolders = useCallback(() => {
     const active = new Set(lockedFolderByAgentRef.current.values());

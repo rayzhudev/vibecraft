@@ -31,11 +31,13 @@ export default function HeroSelectionOverlay({
   const appSettings = useAppSettings();
   const tutorialState = appSettings.settings.tutorial ?? DEFAULT_TUTORIAL_STATE;
   const tutorialEnabled = isTutorialActive(tutorialState);
+  const forceTutorialSelection = tutorialEnabled && tutorialState.stepId === 'hero-provider';
   const heroProviderConfigured = useMemo(() => {
+    if (forceTutorialSelection) return false;
     if (appSettings.settings.heroProvider) return true;
     if (tutorialEnabled) return false;
     return Boolean(heroProvider);
-  }, [appSettings.settings.heroProvider, heroProvider, tutorialEnabled]);
+  }, [appSettings.settings.heroProvider, forceTutorialSelection, heroProvider, tutorialEnabled]);
 
   const updateProviderStatusInSnapshot = useCallback(
     (providerId: AgentProvider, status: ProviderStatus | null) => {

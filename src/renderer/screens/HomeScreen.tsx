@@ -6,11 +6,21 @@ import type { UpdateStatus } from '../../shared/types';
 
 interface HomeScreenProps {
   onOpenWorldSelector: () => void;
+  onOpenTutorial: () => void;
+  onResumeTutorial?: () => void;
+  onRestartTutorial: () => void;
+  tutorialProgress?: { current: number; total: number; label: string } | null;
   onOpenSettings: () => void;
-  tutorialActive?: boolean;
 }
 
-const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenWorldSelector, onOpenSettings, tutorialActive }) => {
+const HomeScreen: React.FC<HomeScreenProps> = ({
+  onOpenWorldSelector,
+  onOpenTutorial,
+  onResumeTutorial,
+  onRestartTutorial,
+  tutorialProgress,
+  onOpenSettings,
+}) => {
   const { activeTheme } = useTheme();
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
   const [updateActionStarting, setUpdateActionStarting] = useState(false);
@@ -57,6 +67,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenWorldSelector, onOpenSett
       : hasUpdateError
         ? 'Update failed'
         : 'Update available';
+  const hasTutorialResume = Boolean(onResumeTutorial && tutorialProgress);
 
   useEffect(() => {
     if (previewVersion) {
@@ -270,6 +281,39 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenWorldSelector, onOpenSett
         </div>
 
         <div className="menu-buttons">
+          {hasTutorialResume && tutorialProgress ? (
+            <div className="tutorial-status-card" data-testid="home-tutorial-status">
+              <div className="tutorial-status-kicker">Tutorial In Progress</div>
+              <div className="tutorial-status-title">{tutorialProgress.label}</div>
+              <div className="tutorial-status-meta">
+                {`Step ${tutorialProgress.current} of ${tutorialProgress.total}`}
+              </div>
+              <div className="tutorial-status-actions">
+                <button
+                  className="menu-button secondary tutorial-action-button"
+                  onClick={onResumeTutorial}
+                  data-testid="home-resume-tutorial"
+                >
+                  <div className="button-icon">↩</div>
+                  <div className="button-text">
+                    <span className="button-label">Resume Tutorial</span>
+                    <span className="button-description">Continue from this step</span>
+                  </div>
+                </button>
+                <button
+                  className="menu-button secondary tutorial-action-button"
+                  onClick={onRestartTutorial}
+                  data-testid="home-restart-tutorial"
+                >
+                  <div className="button-icon">↻</div>
+                  <div className="button-text">
+                    <span className="button-label">Restart Tutorial</span>
+                    <span className="button-description">Begin again from the start</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+          ) : null}
           <button
             className="menu-button primary"
             onClick={onOpenWorldSelector}
@@ -281,15 +325,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenWorldSelector, onOpenSett
               <span className="button-description">Choose your realm</span>
             </div>
           </button>
-          {!tutorialActive && (
-            <button className="menu-button secondary" onClick={onOpenSettings} data-testid="home-settings">
-              <div className="button-icon">⚙️</div>
-              <div className="button-text">
-                <span className="button-label">Settings</span>
-                <span className="button-description">Configure VibeCraft</span>
-              </div>
-            </button>
-          )}
+          <button className="menu-button secondary" onClick={onOpenTutorial} data-testid="home-open-tutorial">
+            <div className="button-icon">🎓</div>
+            <div className="button-text">
+              <span className="button-label">{hasTutorialResume ? 'Resume Tutorial' : 'See Tutorial'}</span>
+              <span className="button-description">
+                {hasTutorialResume ? 'Continue where you left off' : 'Start the guided walkthrough'}
+              </span>
+            </div>
+          </button>
+          <button className="menu-button secondary" onClick={onOpenSettings} data-testid="home-settings">
+            <div className="button-icon">⚙️</div>
+            <div className="button-text">
+              <span className="button-label">Settings</span>
+              <span className="button-description">Configure VibeCraft</span>
+            </div>
+          </button>
         </div>
 
         <div className="menu-panel-footer">

@@ -98,10 +98,6 @@ const initPosthogRecorder = async (): Promise<boolean> => {
       const telemetry = await fetchTelemetryContext();
       if (!telemetry) return false;
 
-      // Ensure the recorder extension is available locally so we don't rely on
-      // injecting external scripts (blocked by the Electron renderer CSP).
-      await import('posthog-js/dist/posthog-recorder');
-
       posthog.init(config.apiKey, {
         api_host: config.host,
         autocapture: false,
@@ -121,7 +117,11 @@ const initPosthogRecorder = async (): Promise<boolean> => {
         platform: telemetry.platform,
       });
 
-      return true;
+      const recorder = getRecorder();
+      return (
+        typeof recorder.startSessionRecording === 'function' ||
+        typeof recorder.stopSessionRecording === 'function'
+      );
     } catch {
       return false;
     }

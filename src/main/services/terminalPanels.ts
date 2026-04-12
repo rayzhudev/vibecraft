@@ -14,6 +14,7 @@ export function createTerminalRecord(
   relativePath: string | undefined,
   x: number,
   y: number,
+  explicitOriginFolderId?: string,
   width = DEFAULT_TERMINAL_SIZE.width,
   height = DEFAULT_TERMINAL_SIZE.height
 ): { success: boolean; terminal?: TerminalPanel; error?: string } {
@@ -36,8 +37,11 @@ export function createTerminalRecord(
     return { success: false, error: 'Folder path is not a directory' };
   }
   const folders = storage.loadFolders(workspacePath);
-  const folder =
-    resolvedPath !== '.' ? folders.find((entry) => entry.relativePath === resolvedPath) : undefined;
+  const folder = explicitOriginFolderId
+    ? folders.find((entry) => entry.id === explicitOriginFolderId)
+    : resolvedPath !== '.'
+      ? folders.find((entry) => entry.relativePath === resolvedPath)
+      : undefined;
 
   if (folder) {
     originFolderId = folder.id;

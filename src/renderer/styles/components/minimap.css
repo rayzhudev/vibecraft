@@ -1,10 +1,47 @@
-.minimap-overlay {
+.minimap-wrapper {
   position: absolute;
   bottom: 16px;
-  left: 16px;
+  right: 16px;
+  z-index: 480;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.minimap-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 14, 20, 0.82);
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0;
+  backdrop-filter: blur(4px);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.minimap-collapse-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.minimap-wrapper--collapsed .minimap-collapse-btn {
+  background: rgba(99, 179, 237, 0.12);
+  color: #63b3ed;
+  border-color: rgba(99, 179, 237, 0.3);
+}
+
+.minimap-overlay {
   width: 280px;
   height: 200px;
-  z-index: 480;
   pointer-events: none;
 }
 

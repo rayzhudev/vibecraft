@@ -35,6 +35,10 @@ const OUTLINE_DISABLED_STEPS: TutorialStep[] = [
   'send-prompt',
   'open-global-chat-2',
   'send-prompt-2',
+  'focus-demo-1',
+  'focus-demo-2',
+  'focus-explain',
+  'import-prompt',
 ];
 
 export const getTutorialAbilityPolicy = (

@@ -130,73 +130,86 @@ export default function TutorialSpotlight({
       return;
     }
 
-    let resizeObserver: ResizeObserver | null = null;
-    const buildRects = (selectors: string[]) => {
-      const elements = selectors.flatMap(
-        (selector) => Array.from(document.querySelectorAll(selector)) as HTMLElement[]
-      );
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-      }
-      if (typeof ResizeObserver !== 'undefined') {
-        resizeObserver = new ResizeObserver(() => {
-          updateRects();
-        });
-        elements.forEach((element) => resizeObserver?.observe(element));
-      }
+    let frame: number | null = null;
+    const queryElements = (selectors: string[]) =>
+      selectors.flatMap((selector) => Array.from(document.querySelectorAll(selector)) as HTMLElement[]);
+    const buildRects = (elements: HTMLElement[]) => {
       const rects = elements
         .map((element) => getElementRect(element))
         .filter((rect): rect is SpotlightRect => Boolean(rect));
       return combineRectList(rects);
     };
     const updateRects = () => {
-      const nextMaskRects = buildRects(selectorList);
-      const nextOutlineRects = outlineEnabled
-        ? outlineSelectorList.length > 0
-          ? buildRects(outlineSelectorList)
-          : nextMaskRects
-        : [];
+      const maskElements = queryElements(selectorList);
+      const outlineElements =
+        outlineSelectorList.length > 0 ? queryElements(outlineSelectorList) : maskElements;
+      const nextMaskRects = buildRects(maskElements);
+      const nextOutlineRects = outlineEnabled ? buildRects(outlineElements) : [];
       setMaskRects((prev) => (rectsEqual(prev, nextMaskRects) ? prev : nextMaskRects));
       setOutlineRects((prev) => (rectsEqual(prev, nextOutlineRects) ? prev : nextOutlineRects));
     };
+    const scheduleUpdate = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        updateRects();
+      });
+    };
 
-    updateRects();
+    scheduleUpdate();
 
-    const handleWindowChange = () => updateRects();
+    const handleWindowChange = () => scheduleUpdate();
     window.addEventListener('resize', handleWindowChange);
     window.addEventListener('scroll', handleWindowChange, true);
 
     return () => {
       window.removeEventListener('resize', handleWindowChange);
       window.removeEventListener('scroll', handleWindowChange, true);
-      resizeObserver?.disconnect();
+      if (frame !== null) {
+        window.cancelAnimationFrame(frame);
+      }
     };
   }, [active, combineRectList, getElementRect, outlineEnabled, outlineSelectorList, selectorList]);
 
   useEffect(() => {
     if (!active || selectorList.length === 0) return;
+    let frame: number | null = null;
+    const scheduleUpdate = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        const elements = selectorList.flatMap(
+          (selector: string) => Array.from(document.querySelectorAll(selector)) as HTMLElement[]
+        );
+        const nextMaskRects = combineRectList(
+          elements
+            .map((element: HTMLElement) => getElementRect(element))
+            .filter((rect): rect is SpotlightRect => Boolean(rect))
+        );
+        const nextOutlineRects = outlineEnabled
+          ? combineRectList(
+              (outlineSelectorList.length > 0 ? outlineSelectorList : selectorList)
+                .flatMap(
+                  (selector: string) => Array.from(document.querySelectorAll(selector)) as HTMLElement[]
+                )
+                .map((element: HTMLElement) => getElementRect(element))
+                .filter((rect): rect is SpotlightRect => Boolean(rect))
+            )
+          : [];
+        setMaskRects((prev) => (rectsEqual(prev, nextMaskRects) ? prev : nextMaskRects));
+        setOutlineRects((prev) => (rectsEqual(prev, nextOutlineRects) ? prev : nextOutlineRects));
+      });
+    };
     const observer = new MutationObserver(() => {
-      const elements = selectorList.flatMap(
-        (selector: string) => Array.from(document.querySelectorAll(selector)) as HTMLElement[]
-      );
-      const nextMaskRects = combineRectList(
-        elements
-          .map((element: HTMLElement) => getElementRect(element))
-          .filter((rect): rect is SpotlightRect => Boolean(rect))
-      );
-      const nextOutlineRects = outlineEnabled
-        ? combineRectList(
-            (outlineSelectorList.length > 0 ? outlineSelectorList : selectorList)
-              .flatMap((selector: string) => Array.from(document.querySelectorAll(selector)) as HTMLElement[])
-              .map((element: HTMLElement) => getElementRect(element))
-              .filter((rect): rect is SpotlightRect => Boolean(rect))
-          )
-        : [];
-      setMaskRects((prev) => (rectsEqual(prev, nextMaskRects) ? prev : nextMaskRects));
-      setOutlineRects((prev) => (rectsEqual(prev, nextOutlineRects) ? prev : nextOutlineRects));
+      scheduleUpdate();
     });
     observer.observe(document.body, { attributes: true, childList: true, subtree: true });
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (frame !== null) {
+        window.cancelAnimationFrame(frame);
+      }
+    };
   }, [active, combineRectList, getElementRect, outlineEnabled, outlineSelectorList, selectorList]);
 
   if (!active) return null;

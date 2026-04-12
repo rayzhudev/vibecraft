@@ -1,5 +1,15 @@
 import './fsTrace';
-import { app, BrowserWindow, screen, systemPreferences } from 'electron';
+import { app, BrowserWindow, dialog, screen, systemPreferences } from 'electron';
+// DIAGNOSTIC: raw fs write bypassing electron-log to find startup failure point
+import * as _diagFs from 'fs';
+const _diagLog = (msg: string) => {
+  try {
+    _diagFs.appendFileSync('/tmp/vc-startup.log', `${new Date().toISOString()} ${msg}\n`);
+  } catch {
+    /* noop */
+  }
+};
+_diagLog('MODULE_LOAD_START');
 import * as fs from 'fs';
 import { join, resolve } from 'path';
 import { execFileSync } from 'child_process';
@@ -10,7 +20,7 @@ import { processManager } from './services/agents/processManager';
 import { stopWorkspaceMcpServer } from './mcp/server';
 import { getStorageNamespace } from './services/storageNamespace';
 import { scheduleStartupBackgroundTasks } from './startupTasks';
-import { ensureDir, getTestModeConfig } from '../testing/testMode';
+import { ensureDir, getTestModeConfig, isTestMode } from '../testing/testMode';
 import { safeWebContentsSend } from './ipc/safeSend';
 import { parseCheckoutSessionId } from './services/licenseClient';
 import { getLicenseClient } from './services/licenseRuntime';
@@ -26,7 +36,47 @@ import { APP_VERSION } from './services/appVersion';
 
 const log = logger.scope('main');
 
+// Catch unhandled exceptions before Electron can show a native NSAlert dialog.
+// On macOS 26 + Electron 41 any NSAlert triggers a V8 crash via Accessibility,
+// so we must prevent the default Electron crash dialog entirely.
+// These handlers run before testMode is resolved; test-mode re-registers below.
+process.on('uncaughtException', (error) => {
+  try {
+    log.error('Uncaught exception — exiting', error);
+  } catch {
+    console.error('Uncaught exception — exiting', error);
+  }
+  if (!isTestMode()) {
+    // Exit without showing a native dialog. On macOS 26 + Electron 41 any
+    // NSAlert triggers an Accessibility → V8 crash, so we must avoid it.
+    process.nextTick(() => app.exit(1));
+  }
+});
+process.on('unhandledRejection', (reason) => {
+  try {
+    log.error('Unhandled rejection', reason);
+  } catch {
+    console.error('Unhandled rejection', reason);
+  }
+});
+
+// On macOS 26 + Electron 41 any NSAlert (including showErrorBox) triggers a
+// V8 Accessibility crash. Override showErrorBox so renderer crashes are logged
+// and the app exits cleanly instead of showing a crashing native dialog.
+dialog.showErrorBox = (title: string, content: string) => {
+  try {
+    log.error('Suppressed error dialog (macOS 26 compat)', { title, content });
+  } catch {
+    console.error('Suppressed error dialog', title, content);
+  }
+  if (!isTestMode()) {
+    process.nextTick(() => app.exit(1));
+  }
+};
+
+_diagLog('BEFORE_LOAD_RUNTIME_ENV');
 loadRuntimeEnv();
+_diagLog('AFTER_LOAD_RUNTIME_ENV');
 
 let mainWindow: BrowserWindow | null = null;
 let readyListenerCleanup: (() => void) | null = null;
@@ -259,7 +309,18 @@ async function createWindow(): Promise<void> {
     flushQueuedRendererEvents();
   });
 
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    log.error('Renderer process crashed', details);
+    // Don't let Electron show a native crash dialog — it crashes on macOS 26.
+  });
+
+  mainWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
+    log.error('Preload script error', { preloadPath, error: error?.message });
+  });
+
   mainWindow.once('ready-to-show', () => {
+    _diagLog(`READY_TO_SHOW isDev=${String(isDev)}`);
+    log.info('ready-to-show fired', { isDev, isTestModeEnabled });
     if (!mainWindow) return;
     if (isTestModeEnabled) {
       if (testMode.showWindow) {
@@ -323,6 +384,7 @@ async function createWindow(): Promise<void> {
     mainWindow = null;
   });
 
+  _diagLog(`VIBECRAFT_STARTED isDev=${String(isDev)}`);
   log.info('VibeCraft started', { isDev, version: APP_VERSION });
 }
 
@@ -331,9 +393,19 @@ async function createWindow(): Promise<void> {
 // We skip this check in development
 
 app.on('ready', () => {
+  _diagLog('APP_READY');
   if (process.platform === 'darwin') {
     try {
       systemPreferences.setUserDefault('ApplePressAndHoldEnabled', 'boolean', false);
+    } catch {
+      /* noop */
+    }
+    // Disable Chromium's accessibility tree on macOS 26 + Electron 41 to prevent
+    // the macOS Accessibility framework from querying V8 internal pointers and
+    // triggering EXC_BREAKPOINT crashes via GetAlignedPointerFromInternalField.
+    try {
+      app.setAccessibilitySupportEnabled(false);
+      log.info('Accessibility support disabled (macOS 26 compat)');
     } catch {
       /* noop */
     }
@@ -350,6 +422,7 @@ app.on('ready', () => {
   scheduleStartupBackgroundTasks({
     onProviderRegistryUpdate: (snapshot) => emitToRenderer('agentconnect-providers-updated', snapshot),
   });
+  _diagLog('BEFORE_CREATE_WINDOW');
   void createWindow();
   initializeAutoUpdates({ isTestMode: isTestModeEnabled });
   onUpdateStatus((status) => emitToRenderer('update-status', status));

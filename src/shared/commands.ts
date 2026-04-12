@@ -9,10 +9,10 @@ export type FolderIdArgs = { folderId: string };
 export type BrowserIdArgs = { browserId: string };
 export type TerminalIdArgs = { terminalId: string };
 
-export type CreateAgentArgs = PointArgs;
+export type CreateAgentArgs = PointArgs & { attachedFolderId?: string };
 export type CreateFolderArgs = PointArgs & { name: string };
-export type CreateBrowserArgs = PointArgs;
-export type CreateTerminalArgs = PointArgs & { path: string };
+export type CreateBrowserArgs = PointArgs & { originFolderId?: string };
+export type CreateTerminalArgs = PointArgs & { path: string; originFolderId?: string };
 export type MoveEntityArgs = PointArgs & { entityType: CommandEntityType; id?: string };
 export type DeleteBrowserArgs = BrowserIdArgs;
 export type MoveAgentArgs = PointArgs & AgentIdArgs;

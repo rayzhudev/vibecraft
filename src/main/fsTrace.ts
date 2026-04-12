@@ -1,12 +1,10 @@
 import type { PathLike } from 'fs';
+import * as fsModule from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
 
 const TRACE_FLAG = (process.env.VIBECRAFT_FS_TRACE ?? '').trim() === '1';
-const require = createRequire(import.meta.url);
-const fsModule = require('fs') as typeof import('fs');
 
 const toPathString = (value: PathLike): string | null => {
   if (typeof value === 'string') return value;

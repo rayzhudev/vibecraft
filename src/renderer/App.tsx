@@ -4,8 +4,18 @@ import CustomTitlebar from './components/CustomTitlebar';
 import TrialBanner from './components/TrialBanner';
 import type { LicenseCheckoutPlan, Workspace } from '../shared/types';
 import { ThemeProvider } from './theme/ThemeProvider';
-import { loadAppSettings, updateTutorialState, useAppSettings } from './state/appSettingsStore';
-import { DEFAULT_TUTORIAL_STATE, isTutorialActive } from './tutorial/constants';
+import {
+  loadAppSettings,
+  refreshAppSettings,
+  updateTutorialState,
+  useAppSettings,
+} from './state/appSettingsStore';
+import {
+  DEFAULT_TUTORIAL_STATE,
+  TUTORIAL_WORLD_ID,
+  getTutorialProgress,
+  isTutorialActive,
+} from './tutorial/constants';
 import {
   applyLicenseUpdate,
   initializeLicense,
@@ -23,6 +33,36 @@ import {
 
 type Screen = 'home' | 'world-selection' | 'workspace' | 'settings';
 
+const createFreshTutorialState = () => ({
+  ...DEFAULT_TUTORIAL_STATE,
+  status: 'in_progress' as const,
+  stepId: 'world-select' as const,
+  workspaceId: undefined,
+  workspacePath: undefined,
+  createdIds: undefined,
+  promptRunId: undefined,
+  promptRunId2: undefined,
+  promptCompletedAt: undefined,
+  promptCompletedAt2: undefined,
+  updatedAt: Date.now(),
+  version: 1 as const,
+});
+
+const createInactiveTutorialState = () => ({
+  ...DEFAULT_TUTORIAL_STATE,
+  status: 'not_started' as const,
+  stepId: 'world-select' as const,
+  workspaceId: undefined,
+  workspacePath: undefined,
+  createdIds: undefined,
+  promptRunId: undefined,
+  promptRunId2: undefined,
+  promptCompletedAt: undefined,
+  promptCompletedAt2: undefined,
+  updatedAt: Date.now(),
+  version: 1 as const,
+});
+
 const LicenseGateOverlay = lazy(() => import('./components/LicenseGateOverlay'));
 const WorldSelection = lazy(() => import('./screens/WorldSelection'));
 const WorkspaceView = lazy(() => import('./screens/WorkspaceView'));
@@ -36,6 +76,9 @@ export default function App() {
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
   const [subscribeOverlayVisible, setSubscribeOverlayVisible] = useState(false);
   const [tutorialCompleteVisible, setTutorialCompleteVisible] = useState(false);
+  const [priorSettingsPath, setPriorSettingsPath] = useState<string | null>(null);
+  const [priorImportPending, setPriorImportPending] = useState(false);
+  const [priorImportError, setPriorImportError] = useState<string | null>(null);
   const [subscriptionSuccessVisible, setSubscriptionSuccessVisible] = useState(false);
   const [showTutorialCompleteKicker, setShowTutorialCompleteKicker] = useState(true);
   const tutorialCompleteDismissedRef = useRef(false);
@@ -47,6 +90,9 @@ export default function App() {
   const appSettings = useAppSettings();
   const tutorialState = appSettings.settings.tutorial ?? DEFAULT_TUTORIAL_STATE;
   const tutorialEnabled = isTutorialActive(tutorialState);
+  const tutorialProgress = getTutorialProgress(tutorialState);
+  const priorImportCompleted = Boolean(appSettings.settings.priorImportCompletedAt);
+  const shouldOfferPriorImport = Boolean(priorSettingsPath) && !priorImportCompleted;
 
   // Derive license state early so it can be used in effects
   const license = licenseState.license;
@@ -57,6 +103,17 @@ export default function App() {
 
   useEffect(() => {
     void loadAppSettings();
+  }, []);
+
+  // Detect prior production settings (packaged app vs dev have different userData paths)
+  useEffect(() => {
+    const request = window.electronAPI.checkForPriorSettings?.();
+    if (!request) return;
+    void request.then((result) => {
+      if (result?.found) {
+        setPriorSettingsPath(result.settingsPath ?? result.sourceDir ?? null);
+      }
+    });
   }, []);
 
   // Initialize renderer analytics
@@ -140,25 +197,64 @@ export default function App() {
     }
   }, [licenseReady, isSubscription, license?.reason]);
 
-  const handleSelectWorkspace = (workspace: Workspace) => {
+  const launchTutorial = useCallback(async () => {
+    const workspace = await window.electronAPI.resetTutorialWorld();
+    setPriorImportError(null);
     setCurrentWorkspace(workspace);
-    window.electronAPI.addRecentWorkspace(workspace);
-    if (tutorialEnabled) {
-      updateTutorialState((current) => ({
-        ...current,
-        status: 'in_progress',
-        stepId: 'hero-provider',
-        workspaceId: workspace.id,
-        workspacePath: workspace.path,
-        updatedAt: Date.now(),
-        version: 1,
-      }));
-    }
+    void window.electronAPI.addRecentWorkspace(workspace);
+    updateTutorialState(() => ({
+      ...createFreshTutorialState(),
+      stepId: 'hero-provider',
+      workspaceId: workspace.id,
+      workspacePath: workspace.path,
+    }));
     setScreen('workspace');
-  };
+  }, []);
+
+  const resumeTutorial = useCallback(async () => {
+    const recent = await window.electronAPI.getRecentWorkspaces();
+    const matched =
+      recent.find((workspace) => workspace.id === tutorialState.workspaceId) ??
+      recent.find((workspace) => workspace.path === tutorialState.workspacePath);
+    const fallback = matched ?? (await window.electronAPI.getTutorialWorld());
+    setPriorImportError(null);
+    setCurrentWorkspace(fallback);
+    void window.electronAPI.addRecentWorkspace(fallback);
+    setScreen('workspace');
+  }, [tutorialState.workspaceId, tutorialState.workspacePath]);
+
+  const handleSelectWorkspace = useCallback(
+    (workspace: Workspace) => {
+      if (workspace.id === TUTORIAL_WORLD_ID) {
+        if (tutorialState.status === 'in_progress' && tutorialState.stepId !== 'world-select') {
+          void resumeTutorial();
+        } else {
+          void launchTutorial();
+        }
+        return;
+      }
+      setCurrentWorkspace(workspace);
+      void window.electronAPI.addRecentWorkspace(workspace);
+      if (tutorialEnabled) {
+        updateTutorialState(() => ({
+          ...createFreshTutorialState(),
+          stepId: 'hero-provider',
+          workspaceId: workspace.id,
+          workspacePath: workspace.path,
+        }));
+      }
+      setScreen('workspace');
+    },
+    [launchTutorial, resumeTutorial, tutorialEnabled, tutorialState.status, tutorialState.stepId]
+  );
 
   const handleBack = () => {
-    if (tutorialEnabled) return;
+    if (tutorialEnabled) {
+      updateTutorialState(() => createInactiveTutorialState());
+      setCurrentWorkspace(null);
+      setScreen('home');
+      return;
+    }
     if (screen === 'workspace') {
       setScreen('world-selection');
       setCurrentWorkspace(null);
@@ -197,45 +293,29 @@ export default function App() {
     setScreen('settings');
   };
 
-  const showBackButton =
-    (screen !== 'home' && screen !== 'settings' && !tutorialEnabled) || screen === 'settings';
+  const handleImportPriorProjects = useCallback(async (): Promise<boolean> => {
+    setPriorImportPending(true);
+    setPriorImportError(null);
+    try {
+      const result = await window.electronAPI.backupAndImportSettings?.();
+      if (!result?.success) {
+        setPriorImportError(result?.error ?? 'Failed to import prior projects.');
+        return false;
+      }
+      await refreshAppSettings();
+      setCurrentWorkspace(null);
+      return true;
+    } catch (error) {
+      setPriorImportError(error instanceof Error ? error.message : 'Failed to import prior projects.');
+      return false;
+    } finally {
+      setPriorImportPending(false);
+    }
+  }, []);
 
-  // Resume tutorial workspace
-  // Wait for license check to complete before auto-navigating
-  // (user will see gate if expired, but at least we don't race)
-  useEffect(() => {
-    if (appSettings.status !== 'loaded') return;
-    if (!tutorialEnabled) return;
-    if (tutorialState.status !== 'in_progress') return;
-    if (tutorialState.stepId === 'world-select') return;
-    if (currentWorkspace) return;
-    // Wait for license check to complete before resuming
-    if (licenseCheckEnabled && !licenseReady) return;
-    let active = true;
-    void (async () => {
-      const recent = await window.electronAPI.getRecentWorkspaces();
-      const matched =
-        recent.find((workspace) => workspace.id === tutorialState.workspaceId) ??
-        recent.find((workspace) => workspace.path === tutorialState.workspacePath);
-      const fallback = matched ?? (await window.electronAPI.getTutorialWorld());
-      if (!active) return;
-      setCurrentWorkspace(fallback);
-      setScreen('workspace');
-    })();
-    return () => {
-      active = false;
-    };
-  }, [
-    appSettings.status,
-    currentWorkspace,
-    tutorialEnabled,
-    tutorialState.status,
-    tutorialState.stepId,
-    tutorialState.workspaceId,
-    tutorialState.workspacePath,
-    licenseCheckEnabled,
-    licenseReady,
-  ]);
+  const showBackButton =
+    screen === 'settings' || (screen !== 'home' && (!tutorialEnabled || screen === 'workspace'));
+  const backButtonTitle = tutorialEnabled ? 'Exit Tutorial' : 'Back to World Selection';
 
   // Show license gate in workspace only after we know the device is inactive.
   const showLicenseGate = licenseCheckEnabled && screen === 'workspace' && licenseReady && !licenseActive;
@@ -260,7 +340,11 @@ export default function App() {
   return (
     <ThemeProvider initialTheme="default">
       <div className="app">
-        <CustomTitlebar showBackButton={showBackButton} onBack={handleBack} />
+        <CustomTitlebar
+          showBackButton={showBackButton}
+          onBack={handleBack}
+          backButtonTitle={backButtonTitle}
+        />
 
         {showTrialBanner && license?.trialEndsAt && (
           <TrialBanner
@@ -272,19 +356,27 @@ export default function App() {
         {screen === 'home' && (
           <HomeScreen
             onOpenWorldSelector={() => {
-              if (tutorialState.status === 'not_started') {
-                updateTutorialState((current) => ({
-                  ...current,
-                  status: 'in_progress',
-                  stepId: 'world-select',
-                  updatedAt: Date.now(),
-                  version: 1,
-                }));
-              }
               setScreen('world-selection');
             }}
+            onOpenTutorial={() => {
+              if (tutorialState.status === 'in_progress' && tutorialState.stepId !== 'world-select') {
+                void resumeTutorial();
+                return;
+              }
+              void launchTutorial();
+            }}
+            onResumeTutorial={
+              tutorialState.status === 'in_progress' && tutorialState.stepId !== 'world-select'
+                ? () => {
+                    void resumeTutorial();
+                  }
+                : undefined
+            }
+            onRestartTutorial={() => {
+              void launchTutorial();
+            }}
+            tutorialProgress={tutorialProgress}
             onOpenSettings={handleOpenSettings}
-            tutorialActive={tutorialEnabled}
           />
         )}
 
@@ -308,6 +400,11 @@ export default function App() {
           <Suspense fallback={null}>
             <SettingsScreen
               license={license}
+              priorImportAvailable={!priorImportCompleted}
+              priorSettingsDetected={shouldOfferPriorImport}
+              priorImportPending={priorImportPending}
+              priorImportError={priorImportError}
+              onImportPriorProjects={handleImportPriorProjects}
               onStartCheckout={handleStartCheckout}
               onManageBilling={handleManageBilling}
               onStartPairing={() => window.electronAPI.licensePairingStart()}

@@ -23,6 +23,8 @@ interface BrowserEntityProps {
   onBringToFront?: () => void;
   onRefreshHandled?: (id: string) => void;
   onTutorialMessage?: (payload: { panelId: string; url: string; message: string }) => void;
+  forcedBounds?: { x: number; y: number; width: number; height: number };
+  lockedToLayout?: boolean;
 }
 
 type WebviewElement = Electron.WebviewTag;
@@ -44,6 +46,8 @@ function BrowserEntity({
   onBringToFront,
   onRefreshHandled,
   onTutorialMessage,
+  forcedBounds,
+  lockedToLayout = false,
 }: BrowserEntityProps) {
   const [minimized, setMinimized] = useState(false);
   const [urlInput, setUrlInput] = useState(panel.url);
@@ -81,6 +85,13 @@ function BrowserEntity({
 
   // Custom drag handler that also calls onSelect
   const startDrag = (e: React.MouseEvent) => {
+    if (lockedToLayout) {
+      e.preventDefault();
+      e.stopPropagation();
+      onSelect();
+      bringToFront();
+      return;
+    }
     if (e.button !== 0) return;
 
     const target = e.target as HTMLElement;
@@ -257,6 +268,14 @@ function BrowserEntity({
   const showSelectionShield = dragSelecting;
   const faviconSrc = !faviconFailed && panel.faviconUrl ? panel.faviconUrl : entityIcons.browser;
   const webviewSessionProps = { partition: BROWSER_SESSION_PARTITION };
+  const effectiveBounds = forcedBounds
+    ? forcedBounds
+    : {
+        x: position.x,
+        y: position.y,
+        width: currentSize.width,
+        height: panelHeight,
+      };
 
   return (
     <WindowedBuildingEntity
@@ -269,10 +288,10 @@ function BrowserEntity({
       className={`browser-entity-wrapper ${showPreview ? 'previewed' : ''} ${isResizing ? 'resizing' : ''} ${isDragging ? 'dragging' : ''}`}
       style={{
         position: 'absolute',
-        left: position.x,
-        top: position.y,
-        width: currentSize.width,
-        height: panelHeight,
+        left: effectiveBounds.x,
+        top: effectiveBounds.y,
+        width: effectiveBounds.width,
+        height: effectiveBounds.height,
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -495,19 +514,21 @@ function BrowserEntity({
           )}
 
           {/* Resize handle */}
-          <div
-            onMouseDown={startResize}
-            title="Resize"
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              right: 0,
-              width: 16,
-              height: 16,
-              cursor: 'se-resize',
-              background: 'linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.3) 50%)',
-            }}
-          />
+          {!lockedToLayout && (
+            <div
+              onMouseDown={startResize}
+              title="Resize"
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                right: 0,
+                width: 16,
+                height: 16,
+                cursor: 'se-resize',
+                background: 'linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.3) 50%)',
+              }}
+            />
+          )}
         </>
       )}
       {showSelectionShield && (
@@ -523,6 +544,11 @@ const areBrowserEntityPropsEqual = (previous: BrowserEntityProps, next: BrowserE
   previous.previewed === next.previewed &&
   previous.zIndex === next.zIndex &&
   previous.dragSelecting === next.dragSelecting &&
-  previous.onTutorialMessage === next.onTutorialMessage;
+  previous.onTutorialMessage === next.onTutorialMessage &&
+  previous.forcedBounds?.x === next.forcedBounds?.x &&
+  previous.forcedBounds?.y === next.forcedBounds?.y &&
+  previous.forcedBounds?.width === next.forcedBounds?.width &&
+  previous.forcedBounds?.height === next.forcedBounds?.height &&
+  previous.lockedToLayout === next.lockedToLayout;
 
 export default React.memo(BrowserEntity, areBrowserEntityPropsEqual);

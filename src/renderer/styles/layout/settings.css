@@ -549,3 +549,103 @@
     flex-direction: column;
   }
 }
+
+/* Projects Section */
+.settings-projects-path-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 0.875rem 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+}
+
+.settings-projects-path-display {
+  flex: 1;
+  font-size: 0.85rem;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.settings-projects-path-placeholder {
+  color: var(--text-tertiary, #555);
+  font-style: italic;
+  font-family: inherit;
+}
+
+.settings-projects-path-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.settings-projects-btn {
+  padding: 0.375rem 0.875rem;
+  font-size: 0.8rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.settings-projects-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.settings-projects-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.settings-projects-btn.secondary {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary, #888);
+}
+
+.settings-projects-btn.secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.settings-projects-import-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(104, 211, 145, 0.08);
+  border: 1px solid rgba(104, 211, 145, 0.22);
+  border-radius: 10px;
+}
+
+.settings-projects-import-copy h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.settings-projects-import-copy p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.settings-projects-import-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.settings-projects-import-error {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #fca5a5;
+}

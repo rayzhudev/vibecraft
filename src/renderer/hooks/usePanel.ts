@@ -114,6 +114,18 @@ export function usePanel({
     latestPositionRef.current = position;
   }, [position]);
 
+  useEffect(() => {
+    if (isDragging) {
+      return;
+    }
+    const nextPosition = { x: initialX, y: initialY };
+    if (position.x === nextPosition.x && position.y === nextPosition.y) {
+      return;
+    }
+    latestPositionRef.current = nextPosition;
+    setPosition(nextPosition);
+  }, [initialX, initialY, isDragging, position.x, position.y]);
+
   // Use the resize hook
   const { size, startResize, isResizing } = usePanelResize({
     width: savedState?.size?.width ?? initialWidth,

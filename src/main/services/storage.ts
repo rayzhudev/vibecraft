@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import type {
   Workspace,
+  PriorWorkspacePreviewEntry,
+  PriorWorkspacePreviewSource,
   AppSettings,
   Agent,
   AgentProvider,
@@ -38,6 +40,7 @@ const FOLDERS_FILE = 'folders.json';
 const BROWSERS_FILE = 'browsers.json';
 const TERMINALS_FILE = 'terminals.json';
 const TUTORIAL_WORLD_DIR = 'worlds';
+const IMPORT_BACKUP_DIR = 'import-backups';
 
 // Get user data path for app-level settings
 function getAppDataPath(): string {
@@ -68,8 +71,8 @@ export const ensureTutorialWorldInRecents = (): Workspace => {
   return world;
 };
 
-const resetTutorialWorld = (): void => {
-  if (tutorialWorldReset) return;
+const resetTutorialWorld = (options?: { force?: boolean }): void => {
+  if (!options?.force && tutorialWorldReset) return;
   tutorialWorldReset = true;
   const worldPath = getTutorialWorldPath();
   if (!fs.existsSync(worldPath)) return;
@@ -78,6 +81,11 @@ const resetTutorialWorld = (): void => {
   } catch (error) {
     log.warn('Failed to reset tutorial world', { error });
   }
+};
+
+export const resetTutorialWorldState = (): Workspace => {
+  resetTutorialWorld({ force: true });
+  return ensureTutorialWorldInRecents();
 };
 
 // Get workspace storage directory
@@ -538,6 +546,467 @@ export function saveSettings(settings: AppSettings): boolean {
   return writeJson(settingsPath, next);
 }
 
+type PriorSettingsInfo = {
+  found: boolean;
+  sourceDir?: string;
+  settingsPath?: string;
+  workspacesPath?: string;
+};
+
+type PriorWorkspacePreview = {
+  found: boolean;
+  sourceDir?: string;
+  workspaces: PriorWorkspacePreviewEntry[];
+  sources: PriorWorkspacePreviewSource[];
+};
+
+type PriorSettingsCandidate = PriorSettingsInfo & {
+  workspaces: Workspace[];
+  nonTutorialWorkspaces: Workspace[];
+  settings: AppSettings;
+  meaningfulSettingsScore: number;
+  sourceName?: string;
+  sourceUpdatedAt?: number;
+  sourceKind: 'live' | 'backup';
+};
+
+const isTutorialWorkspace = (workspace: Pick<Workspace, 'id' | 'name'>): boolean =>
+  workspace.id === TUTORIAL_WORLD_ID || workspace.name === TUTORIAL_WORLD_NAME;
+
+function formatSourceName(sourceDir?: string): string | undefined {
+  if (!sourceDir) return undefined;
+  const baseName = path.basename(sourceDir);
+  if (!baseName) return undefined;
+  if (/^vibecraft-dev$/i.test(baseName)) return 'VibeCraft Dev';
+  if (/^vibecraft$/i.test(baseName)) return 'VibeCraft';
+  if (/^electron$/i.test(baseName)) return 'Electron Legacy';
+  return baseName.replace(/[-_]+/g, ' ');
+}
+
+function formatBackupSourceName(appDir: string, snapshotDir: string): string {
+  const parentName = formatSourceName(appDir) ?? path.basename(appDir);
+  const snapshotName = path.basename(snapshotDir);
+  const match = snapshotName.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})(?:-(\d{3}))?Z$/);
+  const isoLike = match
+    ? `${match[1]}T${match[2]}:${match[3]}:${match[4]}${match[5] ? `.${match[5]}` : ''}Z`
+    : null;
+  const parsed = isoLike && !Number.isNaN(Date.parse(isoLike)) ? new Date(isoLike) : null;
+  if (!parsed) {
+    return `${parentName} Backup`;
+  }
+  return `${parentName} Backup ${parsed.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })}`;
+}
+
+function getPlatformAppDataRoot(): string {
+  const homedir = process.env.HOME ?? process.env.USERPROFILE ?? '';
+  if (process.platform === 'darwin') {
+    return path.join(homedir, 'Library', 'Application Support');
+  }
+  if (process.platform === 'win32') {
+    return process.env.APPDATA ?? path.join(homedir, 'AppData', 'Roaming');
+  }
+  return path.join(homedir, '.config');
+}
+
+function collectSiblingAppDataPaths(): string[] {
+  const root = getPlatformAppDataRoot();
+  const candidates: string[] = [];
+  try {
+    const entries = fs.readdirSync(root, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (/^VibeCraft(?:\b|[-_ ].*)?$/i.test(entry.name) || /^Electron(?:\b|[-_ ].*)?$/i.test(entry.name)) {
+        candidates.push(path.join(root, entry.name));
+      }
+    }
+  } catch {
+    // best effort
+  }
+  return candidates;
+}
+
+function normalizeStoredWorkspaces(stored: Workspace[]): Workspace[] {
+  const normalized: Workspace[] = [];
+  const seenPaths = new Set<string>();
+  const seenIds = new Set<string>();
+
+  stored.forEach((workspace) => {
+    if (
+      !workspace ||
+      typeof workspace.path !== 'string' ||
+      typeof workspace.id !== 'string' ||
+      workspace.id.length === 0
+    ) {
+      return;
+    }
+    const normalizedPath = normalizeWorkspacePath(workspace.path);
+    if (!fs.existsSync(normalizedPath)) return;
+    const name = deriveWorkspaceName(normalizedPath);
+    if (seenPaths.has(normalizedPath) || seenIds.has(workspace.id)) return;
+    seenPaths.add(normalizedPath);
+    seenIds.add(workspace.id);
+    normalized.push({
+      ...workspace,
+      path: normalizedPath,
+      name,
+    });
+  });
+
+  normalized.sort((a, b) => b.lastAccessed - a.lastAccessed);
+  return normalized;
+}
+
+function loadNormalizedWorkspacesFromFile(filePath?: string): Workspace[] {
+  if (!filePath || !fs.existsSync(filePath)) return [];
+  return normalizeStoredWorkspaces(readJson<Workspace[]>(filePath, []));
+}
+
+function loadNormalizedSettingsFromFile(filePath?: string): AppSettings {
+  if (!filePath || !fs.existsSync(filePath)) return {};
+  const stored = readJson<AppSettings>(filePath, {});
+  return {
+    ...stored,
+    tutorial: normalizeTutorialState(stored.tutorial),
+  };
+}
+
+function scoreMeaningfulSettings(settings: AppSettings): number {
+  let score = 0;
+
+  if (typeof settings.heroProvider === 'string' && settings.heroProvider.trim().length > 0) score += 3;
+  if (typeof settings.heroModel === 'string' && settings.heroModel.trim().length > 0) score += 3;
+  if (typeof settings.workspacePath === 'string' && settings.workspacePath.trim().length > 0) score += 2;
+  if (settings.disableGit === true) score += 1;
+  if (settings.edgePanEnabled === false) score += 1;
+  if (typeof settings.priorImportCompletedAt === 'number') score += 1;
+  if (settings.audio && Object.keys(settings.audio).length > 0) score += 2;
+  if (
+    settings.defaultReasoningEffortByProvider &&
+    Object.keys(settings.defaultReasoningEffortByProvider).length > 0
+  ) {
+    score += 2;
+  }
+  if (settings.lastAgentModelByProvider && Object.keys(settings.lastAgentModelByProvider).length > 0) {
+    score += 2;
+  }
+  if (
+    settings.agentNameSequencesByWorkspace &&
+    Object.keys(settings.agentNameSequencesByWorkspace).length > 0
+  ) {
+    score += 2;
+  }
+  if (settings.providerRegistryCache && Object.keys(settings.providerRegistryCache).length > 0) {
+    score += 2;
+  }
+  if (
+    settings.uiState?.abilityVariantSelections &&
+    Object.keys(settings.uiState.abilityVariantSelections).length > 0
+  ) {
+    score += 1;
+  }
+
+  const tutorial = normalizeTutorialState(settings.tutorial);
+  if (
+    tutorial.status === 'in_progress' ||
+    tutorial.status === 'completed' ||
+    tutorial.stepId !== DEFAULT_TUTORIAL_STATE.stepId ||
+    tutorial.workspaceId ||
+    tutorial.workspacePath
+  ) {
+    score += 1;
+  }
+
+  return score;
+}
+
+function getSourceUpdatedAt(dir: string, fallbackWorkspaces: Workspace[]): number {
+  try {
+    return fs.statSync(dir).mtimeMs;
+  } catch {
+    return fallbackWorkspaces[0]?.lastAccessed ?? 0;
+  }
+}
+
+function rankPriorSettingsCandidate(left: PriorSettingsCandidate, right: PriorSettingsCandidate): number {
+  const nonTutorialDiff = right.nonTutorialWorkspaces.length - left.nonTutorialWorkspaces.length;
+  if (nonTutorialDiff !== 0) return nonTutorialDiff;
+
+  const meaningfulSettingsDiff = right.meaningfulSettingsScore - left.meaningfulSettingsScore;
+  if (meaningfulSettingsDiff !== 0) return meaningfulSettingsDiff;
+
+  const leftLatest = left.nonTutorialWorkspaces[0]?.lastAccessed ?? 0;
+  const rightLatest = right.nonTutorialWorkspaces[0]?.lastAccessed ?? 0;
+  if (rightLatest !== leftLatest) return rightLatest - leftLatest;
+
+  const leftVibeCraft = left.sourceDir?.toLowerCase().includes('vibecraft') ? 1 : 0;
+  const rightVibeCraft = right.sourceDir?.toLowerCase().includes('vibecraft') ? 1 : 0;
+  if (rightVibeCraft !== leftVibeCraft) return rightVibeCraft - leftVibeCraft;
+
+  // Prefer the canonical "VibeCraft" app data dir over other casing variants when otherwise tied.
+  const leftExactVibeCraft = path.basename(left.sourceDir ?? '') === 'VibeCraft' ? 1 : 0;
+  const rightExactVibeCraft = path.basename(right.sourceDir ?? '') === 'VibeCraft' ? 1 : 0;
+  if (rightExactVibeCraft !== leftExactVibeCraft) return rightExactVibeCraft - leftExactVibeCraft;
+
+  if (left.sourceKind !== right.sourceKind) {
+    return left.sourceKind === 'live' ? -1 : 1;
+  }
+
+  const totalWorkspacesDiff = right.workspaces.length - left.workspaces.length;
+  if (totalWorkspacesDiff !== 0) return totalWorkspacesDiff;
+
+  const leftUpdatedAt = left.sourceUpdatedAt ?? 0;
+  const rightUpdatedAt = right.sourceUpdatedAt ?? 0;
+  if (rightUpdatedAt !== leftUpdatedAt) return rightUpdatedAt - leftUpdatedAt;
+
+  return (left.sourceDir ?? '').localeCompare(right.sourceDir ?? '');
+}
+
+function getPriorSettingsCandidates(): PriorSettingsCandidate[] {
+  const currentPath = path.resolve(getAppDataPath());
+  const explicitCandidates = [
+    path.join(getPlatformAppDataRoot(), 'VibeCraft'),
+    path.join(getPlatformAppDataRoot(), 'Electron'),
+  ];
+  const candidates = new Set<string>([...collectSiblingAppDataPaths(), ...explicitCandidates]);
+  const resolved: PriorSettingsCandidate[] = [];
+
+  for (const dir of candidates) {
+    const resolvedDir = path.resolve(dir);
+    if (resolvedDir === currentPath) continue;
+    const settingsPath = path.join(resolvedDir, SETTINGS_FILE);
+    const workspacesPath = path.join(resolvedDir, WORKSPACES_FILE);
+    if (fs.existsSync(settingsPath) || fs.existsSync(workspacesPath)) {
+      const workspaces = loadNormalizedWorkspacesFromFile(workspacesPath);
+      const settings = loadNormalizedSettingsFromFile(settingsPath);
+      resolved.push({
+        found: true,
+        sourceDir: resolvedDir,
+        settingsPath: fs.existsSync(settingsPath) ? settingsPath : undefined,
+        workspacesPath: fs.existsSync(workspacesPath) ? workspacesPath : undefined,
+        workspaces,
+        nonTutorialWorkspaces: workspaces.filter((workspace) => !isTutorialWorkspace(workspace)),
+        settings,
+        meaningfulSettingsScore: scoreMeaningfulSettings(settings),
+        sourceName: formatSourceName(resolvedDir),
+        sourceUpdatedAt: getSourceUpdatedAt(resolvedDir, workspaces),
+        sourceKind: 'live',
+      });
+    }
+
+    const backupsDir = path.join(resolvedDir, IMPORT_BACKUP_DIR);
+    if (!fs.existsSync(backupsDir)) continue;
+    const backupEntries = fs.readdirSync(backupsDir, { withFileTypes: true });
+    for (const entry of backupEntries) {
+      if (!entry.isDirectory()) continue;
+      const snapshotDir = path.join(backupsDir, entry.name);
+      const snapshotSettingsPath = path.join(snapshotDir, SETTINGS_FILE);
+      const snapshotWorkspacesPath = path.join(snapshotDir, WORKSPACES_FILE);
+      if (!fs.existsSync(snapshotSettingsPath) && !fs.existsSync(snapshotWorkspacesPath)) continue;
+      const workspaces = loadNormalizedWorkspacesFromFile(snapshotWorkspacesPath);
+      const settings = loadNormalizedSettingsFromFile(snapshotSettingsPath);
+      resolved.push({
+        found: true,
+        sourceDir: snapshotDir,
+        settingsPath: fs.existsSync(snapshotSettingsPath) ? snapshotSettingsPath : undefined,
+        workspacesPath: fs.existsSync(snapshotWorkspacesPath) ? snapshotWorkspacesPath : undefined,
+        workspaces,
+        nonTutorialWorkspaces: workspaces.filter((workspace) => !isTutorialWorkspace(workspace)),
+        settings,
+        meaningfulSettingsScore: scoreMeaningfulSettings(settings),
+        sourceName: formatBackupSourceName(resolvedDir, snapshotDir),
+        sourceUpdatedAt: getSourceUpdatedAt(snapshotDir, workspaces),
+        sourceKind: 'backup',
+      });
+    }
+  }
+
+  resolved.sort(rankPriorSettingsCandidate);
+  return resolved;
+}
+
+function getPriorSettingsSource(): PriorSettingsInfo {
+  const best = getPriorSettingsCandidates()[0];
+  if (!best) return { found: false };
+  return {
+    found: true,
+    sourceDir: best.sourceDir,
+    settingsPath: best.settingsPath,
+    workspacesPath: best.workspacesPath,
+  };
+}
+
+// Check if a prior VibeCraft installation's settings exist.
+export function checkForPriorSettings(): PriorSettingsInfo {
+  return getPriorSettingsSource();
+}
+
+export function getPriorWorkspacePreview(): PriorWorkspacePreview {
+  const candidates = getPriorSettingsCandidates();
+  const source = candidates[0];
+  if (!source) {
+    return { found: false, workspaces: [], sources: [] };
+  }
+
+  const normalized: PriorWorkspacePreviewEntry[] = [];
+  const seenPaths = new Set<string>();
+  const sources: PriorWorkspacePreviewSource[] = [];
+  for (const candidate of candidates) {
+    const sourceEntries: PriorWorkspacePreviewEntry[] = [];
+    const sourceName = candidate.sourceName ?? formatSourceName(candidate.sourceDir);
+    for (const workspace of candidate.nonTutorialWorkspaces) {
+      const nextEntry: PriorWorkspacePreviewEntry = {
+        ...workspace,
+        sourceDir: candidate.sourceDir,
+        sourceName,
+      };
+      sourceEntries.push(nextEntry);
+      if (seenPaths.has(workspace.path)) continue;
+      seenPaths.add(workspace.path);
+      normalized.push(nextEntry);
+    }
+    if (sourceEntries.length > 0) {
+      sources.push({
+        sourceDir: candidate.sourceDir,
+        sourceName,
+        sourceUpdatedAt: candidate.sourceUpdatedAt,
+        workspaces: sourceEntries,
+      });
+    }
+  }
+
+  normalized.sort((a, b) => b.lastAccessed - a.lastAccessed);
+  return {
+    found: normalized.length > 0 || candidates.length > 0,
+    sourceDir: source.sourceDir,
+    workspaces: normalized,
+    sources,
+  };
+}
+
+function restoreFileFromBackup(backupDir: string, fileName: string, targetPath: string): void {
+  const backupFile = path.join(backupDir, fileName);
+  if (!fs.existsSync(backupFile)) {
+    if (fs.existsSync(targetPath)) {
+      fs.rmSync(targetPath, { force: true });
+    }
+    return;
+  }
+  fs.copyFileSync(backupFile, targetPath);
+}
+
+function mergeImportedSettingsForCurrentInstall(current: AppSettings, imported: AppSettings): AppSettings {
+  const merged = mergeSettingsPatch(imported, current);
+  if (current.workspacePath !== undefined) {
+    merged.workspacePath = current.workspacePath;
+  }
+  if (current.tutorial) {
+    merged.tutorial = current.tutorial;
+  }
+  merged.priorImportCompletedAt = Date.now();
+  return merged;
+}
+
+// Backup current settings and import from a prior installation
+export function backupAndImportSettings(): {
+  success: boolean;
+  backupPath?: string;
+  error?: string;
+  importedCount?: number;
+  duplicateCount?: number;
+  sourceCount?: number;
+} {
+  const candidates = getPriorSettingsCandidates();
+  const source = candidates[0];
+  if (!source || candidates.every((candidate) => !candidate.settingsPath && !candidate.workspacesPath)) {
+    return { success: false, error: 'No prior settings were found to import.' };
+  }
+
+  const appDataPath = getAppDataPath();
+  const settingsPath = path.join(appDataPath, SETTINGS_FILE);
+  const workspacesPath = path.join(appDataPath, WORKSPACES_FILE);
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupPath = path.join(appDataPath, IMPORT_BACKUP_DIR, timestamp);
+  try {
+    ensureDir(backupPath);
+    if (fs.existsSync(settingsPath)) fs.copyFileSync(settingsPath, path.join(backupPath, SETTINGS_FILE));
+    if (fs.existsSync(workspacesPath))
+      fs.copyFileSync(workspacesPath, path.join(backupPath, WORKSPACES_FILE));
+  } catch (err) {
+    logger.warn('[storage] Could not backup settings before import:', err);
+    return { success: false, error: 'Failed to backup current settings' };
+  }
+
+  try {
+    const currentSettings = readJson<AppSettings>(settingsPath, {});
+    const importedSettings =
+      source.settingsPath && fs.existsSync(source.settingsPath)
+        ? readJson<AppSettings>(source.settingsPath, {})
+        : {};
+    writeJson(settingsPath, mergeImportedSettingsForCurrentInstall(currentSettings, importedSettings));
+
+    const currentWorkspaces = readJson<Workspace[]>(workspacesPath, []);
+    const importedWorkspaces = candidates.flatMap((candidate) => candidate.nonTutorialWorkspaces);
+    const merged: Workspace[] = [];
+    const seenPaths = new Set<string>();
+    const currentPaths = new Set(
+      currentWorkspaces
+        .filter((ws) => ws && typeof ws.path === 'string' && ws.path)
+        .map((ws) => normalizeWorkspacePath(ws.path))
+    );
+    let importedCount = 0;
+    let duplicateCount = 0;
+
+    for (const ws of importedWorkspaces) {
+      if (!ws || typeof ws.path !== 'string' || !ws.path) {
+        duplicateCount++;
+        continue;
+      }
+      const normalizedPath = normalizeWorkspacePath(ws.path);
+      if (!fs.existsSync(normalizedPath)) {
+        duplicateCount++;
+        continue;
+      }
+      if (seenPaths.has(normalizedPath) || currentPaths.has(normalizedPath)) {
+        duplicateCount++;
+        continue;
+      }
+      merged.push({ ...ws, path: normalizedPath, name: deriveWorkspaceName(normalizedPath) });
+      seenPaths.add(normalizedPath);
+      importedCount++;
+    }
+
+    for (const ws of currentWorkspaces) {
+      if (!ws || typeof ws.path !== 'string' || !ws.path) continue;
+      const normalizedPath = normalizeWorkspacePath(ws.path);
+      if (!fs.existsSync(normalizedPath) || seenPaths.has(normalizedPath)) continue;
+      merged.push({ ...ws, path: normalizedPath, name: deriveWorkspaceName(normalizedPath) });
+      seenPaths.add(normalizedPath);
+    }
+    writeJson(workspacesPath, merged);
+    return {
+      success: true,
+      backupPath,
+      importedCount,
+      duplicateCount,
+      sourceCount: importedWorkspaces.length,
+    };
+  } catch (err) {
+    logger.warn('[storage] Import failed, restoring backup:', err);
+    try {
+      restoreFileFromBackup(backupPath, SETTINGS_FILE, settingsPath);
+      restoreFileFromBackup(backupPath, WORKSPACES_FILE, workspacesPath);
+    } catch {
+      // best effort restore
+    }
+    return { success: false, error: 'Import failed; prior state was restored from backup' };
+  }
+}
+
 // Recent workspaces
 export function getRecentWorkspaces(): Workspace[] {
   const workspacesPath = path.join(getAppDataPath(), WORKSPACES_FILE);
@@ -888,6 +1357,7 @@ export const storage = {
   getTutorialWorldPath,
   ensureTutorialWorld,
   ensureTutorialWorldInRecents,
+  resetTutorialWorldState,
   loadAgents,
   saveAgents,
   getAgentTerminalState,
@@ -908,4 +1378,7 @@ export const storage = {
   saveTerminals,
   loadHero,
   saveHero,
+  checkForPriorSettings,
+  getPriorWorkspacePreview,
+  backupAndImportSettings,
 };

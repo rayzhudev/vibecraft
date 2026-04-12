@@ -77,6 +77,18 @@ const STEP_COPY: Record<string, StepCopy> = {
     title: 'Open the Doodle Jump App',
     body: 'Create another browser to play the doodle jump game we imported.',
   },
+  'focus-demo-1': {
+    title: 'Project Focus Mode',
+    body: 'Notice how all your cookie-clicker windows are now organized in one focused view. Click anywhere or press (Enter) to continue.',
+  },
+  'focus-demo-2': {
+    title: 'Add Another Project',
+    body: 'Now click the doodle-jump project in the Projects panel on the left to add it to your focused view.',
+  },
+  'focus-explain': {
+    title: 'Focus Made Simple',
+    body: 'When you have many projects, Focus Mode lets you zero in on one or more at a time — all their windows, neatly organized. Click anywhere to wrap up.',
+  },
 };
 
 type Position = {
@@ -104,6 +116,7 @@ export default function TutorialOverlay({
     tutorialState.status === 'in_progress' &&
     stepId !== 'world-select' &&
     stepId !== 'hero-provider' &&
+    stepId !== 'import-prompt' &&
     stepId !== 'done' &&
     (!dismissedStepId || dismissedStepId !== stepId) &&
     Boolean(fallbackCopy);
@@ -115,8 +128,7 @@ export default function TutorialOverlay({
 
   useLayoutEffect(() => {
     if (!shouldRender) return;
-    let frame = 0;
-    let active = true;
+    let frame: number | null = null;
 
     const updatePosition = () => {
       const heroEl = document.querySelector('[data-testid="entity-hero"]') as HTMLElement | null;
@@ -141,15 +153,27 @@ export default function TutorialOverlay({
           setPinnedPosition(next);
         }
       }
-      if (active) {
-        frame = window.requestAnimationFrame(updatePosition);
-      }
     };
 
-    frame = window.requestAnimationFrame(updatePosition);
+    const scheduleUpdate = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        updatePosition();
+      });
+    };
+
+    scheduleUpdate();
+
+    window.addEventListener('resize', scheduleUpdate);
+    window.addEventListener('scroll', scheduleUpdate, true);
+
     return () => {
-      active = false;
-      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', scheduleUpdate);
+      window.removeEventListener('scroll', scheduleUpdate, true);
+      if (frame !== null) {
+        window.cancelAnimationFrame(frame);
+      }
     };
   }, [shouldRender]);
 

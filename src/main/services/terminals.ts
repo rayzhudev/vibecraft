@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as pty from 'node-pty-prebuilt-multiarch';
+import * as pty from 'node-pty';
 import { storage } from './storage';
 import { resolveWorkspaceSubpath } from './workspacePaths';
 import { logger } from '../logger';

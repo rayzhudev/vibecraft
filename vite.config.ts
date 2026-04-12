@@ -15,6 +15,11 @@ export default defineConfig(({ mode }) => {
   const gitBranch = mode === 'production' ? '' : resolveGitBranch();
 
   return {
+    server: {
+      hmr: {
+        overlay: false,
+      },
+    },
     plugins: [
       react(),
       electron([

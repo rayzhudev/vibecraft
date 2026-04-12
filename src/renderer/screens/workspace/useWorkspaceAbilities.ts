@@ -13,6 +13,7 @@ interface UseWorkspaceAbilitiesParams {
   hero: Hero;
   agents: Agent[];
   folders: Folder[];
+  focusedProjectIds?: ReadonlySet<string>;
   runCommandWithContext: (command: CommandInvocation) => Promise<CommandRunResult>;
   beginRename: () => void;
   tutorialState?: TutorialState;
@@ -25,6 +26,7 @@ export function useWorkspaceAbilities({
   hero,
   agents,
   folders,
+  focusedProjectIds = new Set<string>(),
   runCommandWithContext,
   beginRename,
   tutorialState = DEFAULT_TUTORIAL_STATE,
@@ -33,6 +35,19 @@ export function useWorkspaceAbilities({
   const tutorialEnabled = tutorialPolicy.enabled;
   const allowedAbilities = tutorialPolicy.allowedAbilities;
   const browserCreationBlocked = tutorialPolicy.browserCreationBlocked;
+  const selectedFolder =
+    selectedEntity?.type === 'folder'
+      ? folders.find((entry) => entry.id === selectedEntity.id)
+      : selectedEntity?.type === 'agent'
+        ? (() => {
+            const selectedAgent = agents.find((entry) => entry.id === selectedEntity.id);
+            return selectedAgent?.attachedFolderId
+              ? folders.find((entry) => entry.id === selectedAgent.attachedFolderId)
+              : undefined;
+          })()
+        : focusedProjectIds.size === 1
+          ? folders.find((entry) => entry.id === Array.from(focusedProjectIds)[0])
+          : undefined;
 
   const handleAbility = async (command: CommandInvocation) => {
     const ability = command.id;
@@ -58,15 +73,23 @@ export function useWorkspaceAbilities({
       const isTutorialSpawn =
         tutorialEnabled &&
         (tutorialState.stepId === 'create-agent' || tutorialState.stepId === 'create-agent-2');
-      const x =
-        hero.x +
-        WORKSPACE_CONSTANTS.AGENT_SPAWN_OFFSET_X +
-        agents.length * WORKSPACE_CONSTANTS.AGENT_SPAWN_SPACING;
-      const y =
-        hero.y +
-        WORKSPACE_CONSTANTS.AGENT_SPAWN_OFFSET_Y +
-        (isTutorialSpawn ? WORKSPACE_CONSTANTS.TUTORIAL_AGENT_SPAWN_EXTRA_Y : 0);
-      await runCommandWithContext({ id: ability, source: 'ui', args: { x, y } });
+      const x = selectedFolder
+        ? selectedFolder.x + WORKSPACE_CONSTANTS.FOLDER_SPAWN_OFFSET_X
+        : hero.x +
+          WORKSPACE_CONSTANTS.AGENT_SPAWN_OFFSET_X +
+          agents.length * WORKSPACE_CONSTANTS.AGENT_SPAWN_SPACING;
+      const y = selectedFolder
+        ? selectedFolder.y +
+          WORKSPACE_CONSTANTS.FOLDER_SPAWN_OFFSET_Y +
+          (isTutorialSpawn ? WORKSPACE_CONSTANTS.TUTORIAL_AGENT_SPAWN_EXTRA_Y : 0)
+        : hero.y +
+          WORKSPACE_CONSTANTS.AGENT_SPAWN_OFFSET_Y +
+          (isTutorialSpawn ? WORKSPACE_CONSTANTS.TUTORIAL_AGENT_SPAWN_EXTRA_Y : 0);
+      await runCommandWithContext({
+        id: ability,
+        source: 'ui',
+        args: { x, y, attachedFolderId: selectedFolder?.id },
+      });
       return;
     }
     if (ability === 'create-folder') {
@@ -81,20 +104,30 @@ export function useWorkspaceAbilities({
       return;
     }
     if (ability === 'create-terminal') {
-      const selectedFolder =
-        selectedEntity?.type === 'folder'
-          ? folders.find((entry) => entry.id === selectedEntity.id)
-          : undefined;
+      if (!selectedFolder) {
+        return;
+      }
       const path = selectedFolder?.relativePath ?? '.';
       const x = selectedFolder ? selectedFolder.x + 120 : hero.x + 180;
       const y = selectedFolder ? selectedFolder.y + 120 : hero.y + 120;
-      await runCommandWithContext({ id: 'create-terminal', source: 'ui', args: { path, x, y } });
+      await runCommandWithContext({
+        id: 'create-terminal',
+        source: 'ui',
+        args: { path, x, y, originFolderId: selectedFolder.id },
+      });
       return;
     }
     if (ability === 'create-browser') {
-      const x = hero.x + WORKSPACE_CONSTANTS.BROWSER_SPAWN_OFFSET_X;
-      const y = hero.y + WORKSPACE_CONSTANTS.BROWSER_SPAWN_OFFSET_Y;
-      await runCommandWithContext({ id: 'create-browser', source: 'ui', args: { x, y } });
+      if (!selectedFolder) {
+        return;
+      }
+      const x = selectedFolder ? selectedFolder.x + 160 : hero.x + WORKSPACE_CONSTANTS.BROWSER_SPAWN_OFFSET_X;
+      const y = selectedFolder ? selectedFolder.y + 160 : hero.y + WORKSPACE_CONSTANTS.BROWSER_SPAWN_OFFSET_Y;
+      await runCommandWithContext({
+        id: 'create-browser',
+        source: 'ui',
+        args: { x, y, originFolderId: selectedFolder?.id },
+      });
       return;
     }
     if (ability === 'create-worktree') {

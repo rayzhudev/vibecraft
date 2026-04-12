@@ -203,7 +203,7 @@ async function run() {
     return;
   }
 
-  const args = ['-f', '-v', electronVersion, '-w', 'node-pty,node-pty-prebuilt-multiarch', '-m', '.'];
+  const args = ['-f', '-v', electronVersion, '-w', 'node-pty', '-m', '.'];
 
   const env = {
     ...process.env,

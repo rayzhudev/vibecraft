@@ -72,6 +72,7 @@ export type AgentModelInfo = {
   maxOutputTokens?: number;
   reasoningEfforts?: ReasoningEffortOption[];
   defaultReasoningEffort?: string;
+  supportsMultimodalInput?: boolean;
 };
 
 export type ProviderStatus = {
@@ -350,6 +351,7 @@ export interface BrowserPanel {
   height: number;
   createdAt: number;
   refreshToken?: number;
+  originFolderId?: string;
 }
 
 // Terminal panel
@@ -394,6 +396,18 @@ export interface Workspace {
   lastAccessed: number;
 }
 
+export interface PriorWorkspacePreviewEntry extends Workspace {
+  sourceDir?: string;
+  sourceName?: string;
+}
+
+export interface PriorWorkspacePreviewSource {
+  sourceDir?: string;
+  sourceName?: string;
+  sourceUpdatedAt?: number;
+  workspaces: PriorWorkspacePreviewEntry[];
+}
+
 // App settings
 export interface AgentTerminalPanelBounds {
   x: number;
@@ -428,6 +442,10 @@ export type TutorialStep =
   | 'send-prompt-2'
   | 'open-browser-1'
   | 'open-browser-2'
+  | 'focus-demo-1'
+  | 'focus-demo-2'
+  | 'focus-explain'
+  | 'import-prompt'
   | 'done';
 
 export interface TutorialState {
@@ -492,6 +510,8 @@ export interface AppSettings {
   providerRegistryCache?: ProviderRegistrySnapshot;
   agentTerminalPanelBounds?: AgentTerminalPanelBounds;
   agentNameSequencesByWorkspace?: Record<string, AgentNameSequenceByProvider>;
+  priorImportCompletedAt?: number;
+  startupChoiceHandledAt?: number;
   tutorial?: TutorialState;
   uiState?: {
     abilityVariantSelections?: Record<string, string>;
@@ -572,6 +592,14 @@ export interface SpawnAgentPayload {
   workspacePath: string;
   x: number;
   y: number;
+  attachedFolderId?: string;
+}
+
+export interface SelectedAgentFile {
+  path: string;
+  name: string;
+  relativePath?: string;
+  inWorkspace: boolean;
 }
 
 export interface AttachAgentPayload {
@@ -598,9 +626,11 @@ export interface ElectronAPI {
   // Workspaces
   getRecentWorkspaces: () => Promise<Workspace[]>;
   getTutorialWorld: () => Promise<Workspace>;
+  resetTutorialWorld: () => Promise<Workspace>;
   addRecentWorkspace: (workspace: Workspace) => Promise<boolean>;
   removeRecentWorkspace: (id: string) => Promise<boolean>;
   selectFolder: (options?: { title?: string }) => Promise<string | null>;
+  selectAgentFiles: (workspacePath: string, options?: { title?: string }) => Promise<SelectedAgentFile[]>;
   importCustomSound: () => Promise<ImportedCustomSound | null>;
   startMcpServer: (
     workspacePath: string
@@ -691,7 +721,8 @@ export interface ElectronAPI {
     x: number,
     y: number,
     width: number,
-    height: number
+    height: number,
+    originFolderId?: string
   ) => Promise<{ success: boolean; panel?: BrowserPanel }>;
   deleteBrowserPanel: (workspacePath: string, id: string) => Promise<boolean>;
   updateBrowserPanel: (workspacePath: string, id: string, updates: Partial<BrowserPanel>) => Promise<boolean>;
@@ -703,6 +734,7 @@ export interface ElectronAPI {
     relativePath: string,
     x: number,
     y: number,
+    originFolderId?: string,
     width?: number,
     height?: number
   ) => Promise<{ success: boolean; terminal?: TerminalPanel; error?: string }>;
@@ -901,6 +933,26 @@ export interface ElectronAPI {
   getWindowId: () => Promise<number | null>;
   onPowerSuspend: (handler: () => void) => () => void;
   onPowerResume: (handler: () => void) => () => void;
+  checkForPriorSettings?: () => Promise<{
+    found: boolean;
+    sourceDir?: string;
+    settingsPath?: string;
+    workspacesPath?: string;
+  } | null>;
+  getPriorWorkspacePreview?: () => Promise<{
+    found: boolean;
+    sourceDir?: string;
+    workspaces: PriorWorkspacePreviewEntry[];
+    sources?: PriorWorkspacePreviewSource[];
+  } | null>;
+  backupAndImportSettings?: () => Promise<{
+    success: boolean;
+    backupPath?: string;
+    error?: string;
+    importedCount?: number;
+    duplicateCount?: number;
+    sourceCount?: number;
+  }>;
 }
 
 declare global {

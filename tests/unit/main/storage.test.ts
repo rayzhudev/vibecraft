@@ -13,6 +13,9 @@ vi.mock('electron', () => ({
 
 import {
   addRecentWorkspace,
+  backupAndImportSettings,
+  checkForPriorSettings,
+  getPriorWorkspacePreview,
   importCustomSoundFromPath,
   getRecentWorkspaces,
   loadAgents,
@@ -45,13 +48,209 @@ import {
   VIBECRAFT_CORE_MCP_SKILL_ID,
   VIBECRAFT_DOCS_MCP_SKILL_ID,
 } from '../../../src/shared/types';
+import { DEFAULT_TUTORIAL_STATE } from '../../../src/shared/tutorial';
+
+let previousHome = '';
 
 beforeEach(() => {
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibecraft-storage-'));
+  previousHome = process.env.HOME ?? '';
+  process.env.HOME = tempDir;
 });
 
 afterEach(() => {
+  process.env.HOME = previousHome;
   fs.rmSync(tempDir, { recursive: true, force: true });
+});
+
+test('checkForPriorSettings finds prior app data outside the current install', () => {
+  const priorDir = path.join(tempDir, 'Library', 'Application Support', 'VibeCraft');
+  fs.mkdirSync(priorDir, { recursive: true });
+  fs.writeFileSync(path.join(priorDir, 'settings.json'), JSON.stringify({ heroModel: 'gpt-5' }), 'utf8');
+
+  const detected = checkForPriorSettings();
+  expect(detected.found).toBe(true);
+  expect(detected.sourceDir).toBe(priorDir);
+});
+
+test('prior workspace detection prefers non-tutorial data over tutorial-only installs', () => {
+  const tutorialWorldPath = path.join(
+    tempDir,
+    'Library',
+    'Application Support',
+    'vibecraft',
+    'worlds',
+    'Tutorial'
+  );
+  const priorProjectsPath = path.join(tempDir, 'Documents', 'projects');
+  fs.mkdirSync(tutorialWorldPath, { recursive: true });
+  fs.mkdirSync(priorProjectsPath, { recursive: true });
+
+  const electronDir = path.join(tempDir, 'Library', 'Application Support', 'Electron');
+  fs.mkdirSync(electronDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(electronDir, 'workspaces.json'),
+    JSON.stringify([
+      {
+        id: 'tutorial-world',
+        name: 'Tutorial',
+        path: tutorialWorldPath,
+        lastAccessed: 100,
+      },
+    ]),
+    'utf8'
+  );
+
+  const vibecraftDir = path.join(tempDir, 'Library', 'Application Support', 'VibeCraft');
+  fs.mkdirSync(vibecraftDir, { recursive: true });
+  fs.writeFileSync(path.join(vibecraftDir, 'settings.json'), JSON.stringify({ heroModel: 'gpt-5' }), 'utf8');
+  fs.writeFileSync(
+    path.join(vibecraftDir, 'workspaces.json'),
+    JSON.stringify([
+      {
+        id: 'ws-projects',
+        name: 'projects',
+        path: priorProjectsPath,
+        lastAccessed: 200,
+      },
+      {
+        id: 'tutorial-world',
+        name: 'Tutorial',
+        path: tutorialWorldPath,
+        lastAccessed: 150,
+      },
+    ]),
+    'utf8'
+  );
+
+  const detected = checkForPriorSettings();
+  expect(detected.found).toBe(true);
+  expect(detected.sourceDir).toBe(vibecraftDir);
+
+  const preview = getPriorWorkspacePreview();
+  expect(preview.workspaces).toHaveLength(1);
+  expect(preview.workspaces[0].path).toBe(priorProjectsPath);
+});
+
+test('prior settings detection prefers meaningful settings over emptier historical installs', () => {
+  const prodProjectsPath = path.join(tempDir, 'Documents', 'prod-projects');
+  const demoProjectsPath = path.join(tempDir, 'Documents', 'demo-projects');
+  fs.mkdirSync(prodProjectsPath, { recursive: true });
+  fs.mkdirSync(demoProjectsPath, { recursive: true });
+
+  const demoDir = path.join(tempDir, 'Library', 'Application Support', 'VibeCraft Dev');
+  fs.mkdirSync(demoDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(demoDir, 'settings.json'),
+    JSON.stringify({
+      tutorial: {
+        ...DEFAULT_TUTORIAL_STATE,
+        status: 'in_progress',
+        stepId: 'create-agent',
+        version: 1,
+      },
+    }),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(demoDir, 'workspaces.json'),
+    JSON.stringify([{ id: 'demo', name: 'demo-projects', path: demoProjectsPath, lastAccessed: 300 }]),
+    'utf8'
+  );
+
+  const prodDir = path.join(tempDir, 'Library', 'Application Support', 'VibeCraft');
+  fs.mkdirSync(prodDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(prodDir, 'settings.json'),
+    JSON.stringify({
+      heroProvider: 'codex',
+      heroModel: 'gpt-5',
+      audio: { muted: true },
+      defaultReasoningEffortByProvider: { codex: 'high' },
+    }),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(prodDir, 'workspaces.json'),
+    JSON.stringify([{ id: 'prod', name: 'prod-projects', path: prodProjectsPath, lastAccessed: 200 }]),
+    'utf8'
+  );
+
+  const detected = checkForPriorSettings();
+  expect(detected.found).toBe(true);
+  expect(detected.sourceDir).toBe(prodDir);
+});
+
+test('backupAndImportSettings merges prior settings while preserving current workspace root and tutorial', () => {
+  const currentWorkspaceDir = path.join(tempDir, 'CurrentWorkspace');
+  const importedWorkspaceDir = path.join(tempDir, 'ImportedWorkspace');
+  fs.mkdirSync(currentWorkspaceDir, { recursive: true });
+  fs.mkdirSync(importedWorkspaceDir, { recursive: true });
+
+  fs.writeFileSync(
+    path.join(tempDir, 'settings.json'),
+    JSON.stringify({
+      workspacePath: '/current/projects/root',
+      heroProvider: 'claude',
+      tutorial: {
+        ...DEFAULT_TUTORIAL_STATE,
+        status: 'completed',
+        stepId: 'done',
+        version: 1,
+      },
+    }),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(tempDir, 'workspaces.json'),
+    JSON.stringify([
+      { id: 'current', name: 'CurrentWorkspace', path: currentWorkspaceDir, lastAccessed: 10 },
+    ]),
+    'utf8'
+  );
+
+  const priorDir = path.join(tempDir, 'Library', 'Application Support', 'VibeCraft');
+  fs.mkdirSync(priorDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(priorDir, 'settings.json'),
+    JSON.stringify({
+      workspacePath: '/prior/projects/root',
+      heroProvider: 'codex',
+      heroModel: 'gpt-5',
+      audio: { muted: true },
+      defaultReasoningEffortByProvider: { codex: 'high' },
+    }),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(priorDir, 'workspaces.json'),
+    JSON.stringify([
+      { id: 'imported', name: 'ImportedWorkspace', path: importedWorkspaceDir, lastAccessed: 20 },
+    ]),
+    'utf8'
+  );
+
+  const result = backupAndImportSettings();
+  expect(result.success).toBe(true);
+  expect(result.backupPath).toBeTruthy();
+  expect(result.importedCount).toBe(1);
+  expect(result.duplicateCount).toBe(0);
+  expect(result.sourceCount).toBe(1);
+
+  const nextSettings = JSON.parse(fs.readFileSync(path.join(tempDir, 'settings.json'), 'utf8'));
+  expect(nextSettings.workspacePath).toBe('/current/projects/root');
+  expect(nextSettings.tutorial.status).toBe('completed');
+  expect(nextSettings.heroProvider).toBe('claude');
+  expect(nextSettings.heroModel).toBe('gpt-5');
+  expect(nextSettings.audio).toEqual({ muted: true });
+  expect(typeof nextSettings.priorImportCompletedAt).toBe('number');
+
+  const nextWorkspaces = JSON.parse(fs.readFileSync(path.join(tempDir, 'workspaces.json'), 'utf8'));
+  expect(nextWorkspaces).toHaveLength(2);
+  expect(nextWorkspaces.map((workspace: { path: string }) => workspace.path)).toEqual([
+    importedWorkspaceDir,
+    currentWorkspaceDir,
+  ]);
 });
 
 test('addRecentWorkspace normalizes paths and de-duplicates by path', () => {

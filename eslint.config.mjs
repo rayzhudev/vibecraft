@@ -8,7 +8,7 @@ import tseslint from 'typescript-eslint';
 const tsFiles = ['**/*.{ts,tsx}'];
 
 export default [
-  { ignores: ['dist/**', 'node_modules/**', '.e2e-dist-*/**'] },
+  { ignores: ['dist/**', 'node_modules/**', '.e2e-dist-*/**', '.claude/**', 'release/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -66,6 +66,16 @@ export default [
     files: ['src/main/services/terminals.ts'],
     rules: {
       'no-control-regex': 'off',
+    },
+  },
+  {
+    files: ['tests/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { args: 'none', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
     },
   },
 ];

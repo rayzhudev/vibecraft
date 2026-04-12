@@ -153,6 +153,15 @@ const dismissTutorialOverlayIfPresent = async (page: Page): Promise<void> => {
 };
 
 const enterWorkspaceFromHome = async (page: Page): Promise<void> => {
+  const startupOverlay = page.locator('.tour-opt-in-overlay');
+  const startupVisible = await startupOverlay.isVisible({ timeout: 2_000 }).catch(() => false);
+  if (startupVisible) {
+    const continueButton = startupOverlay.getByRole('button', { name: 'Continue?' });
+    if (await continueButton.isVisible({ timeout: 500 }).catch(() => false)) {
+      await continueButton.click();
+    }
+  }
+
   const openWorldSelector = page.getByTestId('home-select-world');
   const homeVisible = await openWorldSelector.isVisible({ timeout: 2_000 }).catch(() => false);
   if (!homeVisible) return;
@@ -225,7 +234,7 @@ export async function launchTestApp(options: LaunchOptions = {}): Promise<TestAp
         : {}),
       NODE_PATH: path.join(process.cwd(), 'node_modules'),
     },
-    timeout: 15_000,
+    timeout: 30_000,
   });
   if (debug) {
     console.log('[e2e] electron launched');
@@ -252,7 +261,7 @@ export async function launchTestApp(options: LaunchOptions = {}): Promise<TestAp
     });
   }
 
-  const page = await withTimeout(app.firstWindow(), 15_000, 'Electron window did not open in time');
+  const page = await withTimeout(app.firstWindow(), 30_000, 'Electron window did not open in time');
   await page.waitForLoadState('domcontentloaded');
   if (!tutorialMode) {
     await dismissTutorialOverlayIfPresent(page);

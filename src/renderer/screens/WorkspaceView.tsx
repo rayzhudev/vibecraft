@@ -142,7 +142,6 @@ export default function WorkspaceView({ workspace, onBack }: WorkspaceViewProps)
       <HeroSelectionOverlay
         workspacePath={workspace.path}
         onConfirmProvider={controller.handleSetHeroProvider}
-        heroProvider={controller.hero.provider}
       />
     </div>
   );

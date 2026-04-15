@@ -76,6 +76,7 @@ export default function App() {
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
   const [subscribeOverlayVisible, setSubscribeOverlayVisible] = useState(false);
   const [tutorialCompleteVisible, setTutorialCompleteVisible] = useState(false);
+  const [tourOptInDismissed, setTourOptInDismissed] = useState(false);
   const [priorSettingsPath, setPriorSettingsPath] = useState<string | null>(null);
   const [priorImportPending, setPriorImportPending] = useState(false);
   const [priorImportError, setPriorImportError] = useState<string | null>(null);
@@ -339,7 +340,7 @@ export default function App() {
 
   return (
     <ThemeProvider initialTheme="default">
-      <div className="app">
+      <div className="app" data-settings-status={appSettings.status}>
         <CustomTitlebar
           showBackButton={showBackButton}
           onBack={handleBack}
@@ -377,6 +378,15 @@ export default function App() {
             }}
             tutorialProgress={tutorialProgress}
             onOpenSettings={handleOpenSettings}
+            showTourOptIn={tutorialComplete && !tourOptInDismissed}
+            onTourOptInContinue={() => {
+              setTourOptInDismissed(true);
+              setScreen('world-selection');
+            }}
+            onTourOptInRestart={() => {
+              setTourOptInDismissed(true);
+              void launchTutorial();
+            }}
           />
         )}
 

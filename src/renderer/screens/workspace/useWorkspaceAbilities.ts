@@ -104,23 +104,17 @@ export function useWorkspaceAbilities({
       return;
     }
     if (ability === 'create-terminal') {
-      if (!selectedFolder) {
-        return;
-      }
       const path = selectedFolder?.relativePath ?? '.';
       const x = selectedFolder ? selectedFolder.x + 120 : hero.x + 180;
       const y = selectedFolder ? selectedFolder.y + 120 : hero.y + 120;
       await runCommandWithContext({
         id: 'create-terminal',
         source: 'ui',
-        args: { path, x, y, originFolderId: selectedFolder.id },
+        args: { path, x, y, originFolderId: selectedFolder?.id },
       });
       return;
     }
     if (ability === 'create-browser') {
-      if (!selectedFolder) {
-        return;
-      }
       const x = selectedFolder ? selectedFolder.x + 160 : hero.x + WORKSPACE_CONSTANTS.BROWSER_SPAWN_OFFSET_X;
       const y = selectedFolder ? selectedFolder.y + 160 : hero.y + WORKSPACE_CONSTANTS.BROWSER_SPAWN_OFFSET_Y;
       await runCommandWithContext({

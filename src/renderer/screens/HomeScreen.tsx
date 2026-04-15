@@ -11,6 +11,9 @@ interface HomeScreenProps {
   onRestartTutorial: () => void;
   tutorialProgress?: { current: number; total: number; label: string } | null;
   onOpenSettings: () => void;
+  showTourOptIn?: boolean;
+  onTourOptInContinue?: () => void;
+  onTourOptInRestart?: () => void;
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -20,6 +23,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   onRestartTutorial,
   tutorialProgress,
   onOpenSettings,
+  showTourOptIn = false,
+  onTourOptInContinue,
+  onTourOptInRestart,
 }) => {
   const { activeTheme } = useTheme();
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
@@ -399,6 +405,33 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           {showDevBranch ? <div className="dev-branch">{gitBranch}</div> : null}
         </div>
       </div>
+
+      {showTourOptIn && (
+        <div className="tour-opt-in-overlay">
+          <div className="tour-opt-in-card">
+            <h2 className="tour-opt-in-title">Welcome to VibeCraft</h2>
+            <p className="tour-opt-in-body">
+              You&apos;ve completed the tutorial. Ready to start building with AI agents?
+            </p>
+            <div className="tour-opt-in-actions">
+              <button
+                type="button"
+                className="tour-opt-in-btn tour-opt-in-btn--accept"
+                onClick={onTourOptInRestart}
+              >
+                Restart Tutorial
+              </button>
+              <button
+                type="button"
+                className="tour-opt-in-btn tour-opt-in-btn--skip"
+                onClick={onTourOptInContinue}
+              >
+                Continue?
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

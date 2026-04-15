@@ -196,7 +196,23 @@ test('runtime panning stress capture (heavy entities)', async () => {
 
     await seedWorkspaceEntities(paths.workspace, options);
 
-    await page.getByTestId('home-select-world').click();
+    // Wait for settings to load, then dismiss tour-opt-in overlay if present
+    await page
+      .locator('[data-settings-status="loaded"]')
+      .waitFor({ state: 'attached', timeout: 10_000 })
+      .catch(() => {});
+    const tourOverlay = page.locator('.tour-opt-in-overlay');
+    const tourVisible = await tourOverlay.isVisible({ timeout: 500 }).catch(() => false);
+    if (tourVisible) {
+      await tourOverlay.getByRole('button', { name: 'Continue?' }).click();
+    }
+
+    // After dismissing overlay, "Continue?" navigates to world-selection; otherwise click from home
+    const worldItemDirect = page.getByTestId('world-item').first();
+    const alreadyOnWorldSelection = await worldItemDirect.isVisible({ timeout: 2_000 }).catch(() => false);
+    if (!alreadyOnWorldSelection) {
+      await page.getByTestId('home-select-world').click();
+    }
     const worldItem = page.getByTestId('world-item').first();
     await worldItem.waitFor({ state: 'visible', timeout: 12_000 });
     await worldItem.click();

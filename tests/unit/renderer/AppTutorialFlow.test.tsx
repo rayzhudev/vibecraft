@@ -95,7 +95,7 @@ describe('App tutorial startup flow', () => {
     cleanup();
   });
 
-  it('shows a clean home screen without a startup tutorial gate', async () => {
+  it('shows startup tour opt-in overlay when tutorial is completed, dismissed by continuing', async () => {
     const { default: App } = await import('../../../src/renderer/App');
 
     render(<App />);
@@ -104,8 +104,14 @@ describe('App tutorial startup flow', () => {
       expect(screen.getByTestId('home-select-world')).toBeInTheDocument();
     });
 
-    expect(screen.queryByText('Welcome to VibeCraft')).not.toBeInTheDocument();
+    expect(screen.getByText('Welcome to VibeCraft')).toBeInTheDocument();
     expect(screen.getByTestId('home-open-tutorial')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue?' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Welcome to VibeCraft')).not.toBeInTheDocument();
+    });
   });
 
   it('shows detected prior projects in world selection when tutorial has not started', async () => {

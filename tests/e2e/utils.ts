@@ -153,21 +153,36 @@ const dismissTutorialOverlayIfPresent = async (page: Page): Promise<void> => {
 };
 
 const enterWorkspaceFromHome = async (page: Page): Promise<void> => {
-  const startupOverlay = page.locator('.tour-opt-in-overlay');
-  const startupVisible = await startupOverlay.isVisible({ timeout: 2_000 }).catch(() => false);
-  if (startupVisible) {
-    const continueButton = startupOverlay.getByRole('button', { name: 'Continue?' });
-    if (await continueButton.isVisible({ timeout: 500 }).catch(() => false)) {
-      await continueButton.click();
-    }
+  const worldItem = page.getByTestId('world-item').first();
+
+  // If we're already on world-selection (e.g., re-entry after a previous navigation)
+  if (await worldItem.isVisible({ timeout: 500 }).catch(() => false)) {
+    await worldItem.click();
+    await page.getByTestId('workspace-canvas').waitFor({ state: 'visible', timeout: 10_000 });
+    return;
   }
 
-  const openWorldSelector = page.getByTestId('home-select-world');
-  const homeVisible = await openWorldSelector.isVisible({ timeout: 2_000 }).catch(() => false);
-  if (!homeVisible) return;
+  // Wait for settings to finish loading before checking for the overlay.
+  // The tour-opt-in overlay only appears once appSettings.status === 'loaded', so checking
+  // before that point gives a false negative and the overlay later intercepts the click.
+  await page
+    .locator('[data-settings-status="loaded"]')
+    .waitFor({ state: 'attached', timeout: 10_000 })
+    .catch(() => {});
 
-  await openWorldSelector.click();
-  const worldItem = page.getByTestId('world-item').first();
+  // Dismiss tour-opt-in overlay if present (shown when tutorial is completed)
+  const startupOverlay = page.locator('.tour-opt-in-overlay');
+  if (await startupOverlay.isVisible({ timeout: 500 }).catch(() => false)) {
+    await startupOverlay.getByRole('button', { name: 'Continue?' }).click();
+    // "Continue?" navigates to world-selection
+    await worldItem.waitFor({ state: 'visible', timeout: 5_000 });
+    await worldItem.click();
+    await page.getByTestId('workspace-canvas').waitFor({ state: 'visible', timeout: 10_000 });
+    return;
+  }
+
+  // Normal home screen: open world selector then pick workspace
+  await page.getByTestId('home-select-world').click();
   await worldItem.waitFor({ state: 'visible', timeout: 10_000 });
   await worldItem.click();
   await page.getByTestId('workspace-canvas').waitFor({ state: 'visible', timeout: 10_000 });

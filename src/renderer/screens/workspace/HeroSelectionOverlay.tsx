@@ -10,7 +10,6 @@ type ProviderActionResult = { ok: boolean; status?: ProviderStatus | null; error
 interface HeroSelectionOverlayProps {
   workspacePath: string;
   onConfirmProvider: (provider: AgentProvider) => Promise<ProviderActionResult>;
-  heroProvider?: AgentProvider;
 }
 
 const emptySnapshot: ProviderRegistrySnapshot = {
@@ -25,7 +24,6 @@ const emptySnapshot: ProviderRegistrySnapshot = {
 export default function HeroSelectionOverlay({
   workspacePath,
   onConfirmProvider,
-  heroProvider,
 }: HeroSelectionOverlayProps) {
   const [providerSnapshot, setProviderSnapshot] = useState<ProviderRegistrySnapshot>(emptySnapshot);
   const appSettings = useAppSettings();
@@ -34,10 +32,8 @@ export default function HeroSelectionOverlay({
   const forceTutorialSelection = tutorialEnabled && tutorialState.stepId === 'hero-provider';
   const heroProviderConfigured = useMemo(() => {
     if (forceTutorialSelection) return false;
-    if (appSettings.settings.heroProvider) return true;
-    if (tutorialEnabled) return false;
-    return Boolean(heroProvider);
-  }, [appSettings.settings.heroProvider, forceTutorialSelection, heroProvider, tutorialEnabled]);
+    return Boolean(appSettings.settings.heroProvider);
+  }, [appSettings.settings.heroProvider, forceTutorialSelection]);
 
   const updateProviderStatusInSnapshot = useCallback(
     (providerId: AgentProvider, status: ProviderStatus | null) => {

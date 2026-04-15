@@ -39,7 +39,7 @@ const dragSelectRect = async (page: Page, start: { x: number; y: number }, end: 
   await page.mouse.up();
 };
 
-const expectAgentsClustered = async (agents: Locator, maxDistance = 6) => {
+const getMaxAgentSeparation = async (agents: Locator): Promise<number> => {
   const count = await agents.count();
   const centers: Array<{ x: number; y: number }> = [];
   for (let i = 0; i < count; i += 1) {
@@ -47,12 +47,19 @@ const expectAgentsClustered = async (agents: Locator, maxDistance = 6) => {
     if (!box) throw new Error('Missing agent bounds');
     centers.push({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
   }
+  let max = 0;
   for (let i = 0; i < centers.length; i += 1) {
     for (let j = i + 1; j < centers.length; j += 1) {
-      const separation = Math.hypot(centers[i].x - centers[j].x, centers[i].y - centers[j].y);
-      expect(separation).toBeLessThan(maxDistance);
+      max = Math.max(max, Math.hypot(centers[i].x - centers[j].x, centers[i].y - centers[j].y));
     }
   }
+  return max;
+};
+
+const expectAgentsClustered = async (agents: Locator, maxDistance = 6) => {
+  // Poll until agents converge — drag/settle is async and React may not have
+  // flushed all position updates by the time we first read bounding boxes.
+  await expect.poll(() => getMaxAgentSeparation(agents), { timeout: 5_000 }).toBeLessThan(maxDistance);
 };
 
 const expectAllAgentsSeparated = async (agents: Locator, minDistance = 16, soft = false) => {

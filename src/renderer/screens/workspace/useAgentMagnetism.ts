@@ -8,6 +8,10 @@ import {
   isOutsideGravity,
 } from './attachLayout';
 
+// Keep in sync with workspace layout constants
+const FOLDER_SIZE = 80;
+const AGENT_SIZE = 48;
+
 type LayoutOverride = { x: number; y: number; width?: number; height?: number };
 
 type DragEndData = { pos: Position; dragDistance: number };
@@ -17,6 +21,9 @@ type UseAgentMagnetismParams = {
   agents: Agent[];
   folders: Folder[];
   positionOverrides?: Map<string, LayoutOverride>;
+  projectZones?: import('./useProjectMode').ProjectZone[];
+  layoutActive?: boolean;
+  focusModeActive?: boolean;
   setAgents: React.Dispatch<React.SetStateAction<Agent[]>>;
   persistAgentPosition: (id: string, x: number, y: number) => Promise<CommandRunResult>;
   attachAgentToFolder: (
@@ -44,6 +51,9 @@ export function useAgentMagnetism({
   agents,
   folders,
   positionOverrides,
+  projectZones,
+  layoutActive,
+  focusModeActive,
   setAgents,
   persistAgentPosition,
   attachAgentToFolder,
@@ -135,7 +145,7 @@ export function useAgentMagnetism({
       if (!agent) return;
 
       const startAttachment = dragStartAttachmentRef.current.get(agentId);
-      const currentAttachment = resolveDragAttachment(agentId, agent.attachedFolderId);
+      let currentAttachment = resolveDragAttachment(agentId, agent.attachedFolderId);
       const lastPos = dragLastPosByAgentRef.current.get(agentId);
       let finalPos = data?.pos ?? lastPos ?? { x: agent.x, y: agent.y };
 
@@ -148,6 +158,31 @@ export function useAgentMagnetism({
         const folder = foldersRef.current.find((entry) => entry.id === currentAttachment);
         if (folder) {
           finalPos = getSnapPosition(folder, lockedAngle);
+        }
+      }
+
+      // If no folder is magnetized yet but we dropped inside an organized/tiled project pane,
+      // attach to that pane's folder to avoid disconnects.
+      if (!currentAttachment && projectZones && (layoutActive || focusModeActive)) {
+        const zoneHit = projectZones.find(
+          (zone) =>
+            finalPos.x >= zone.x &&
+            finalPos.x <= zone.x + zone.w &&
+            finalPos.y >= zone.y &&
+            finalPos.y <= zone.y + zone.h
+        );
+        if (zoneHit) {
+          currentAttachment = zoneHit.folderId;
+          const folder = foldersRef.current.find((f) => f.id === zoneHit.folderId);
+          finalPos = folder
+            ? {
+                x: folder.x + FOLDER_SIZE / 2 - AGENT_SIZE / 2,
+                y: folder.y + FOLDER_SIZE / 2 - AGENT_SIZE / 2,
+              }
+            : {
+                x: zoneHit.x + zoneHit.w / 2 - AGENT_SIZE / 2,
+                y: zoneHit.y + zoneHit.h / 2 - AGENT_SIZE / 2,
+              };
         }
       }
 
@@ -195,10 +230,21 @@ export function useAgentMagnetism({
         }
         return (resolved.angleDeg * Math.PI) / 180;
       };
-      const attachedFolderId = resolveDragAttachment(id, agent.attachedFolderId);
+      let attachedFolderId = resolveDragAttachment(id, agent.attachedFolderId);
       const attachedFolder = attachedFolderId
         ? foldersRef.current.find((folder) => folder.id === attachedFolderId)
         : undefined;
+
+      // If we are organized into panes, treat a pane hit as the active target even before snap.
+      if (!attachedFolder && projectZones && (layoutActive || focusModeActive)) {
+        const zoneHit = projectZones.find(
+          (zone) => cursorPos.x >= zone.x && cursorPos.x <= zone.x + zone.w && cursorPos.y >= zone.y && cursorPos.y <= zone.y + zone.h
+        );
+        if (zoneHit) {
+          attachedFolderId = zoneHit.folderId;
+          pendingAttachRef.current.set(id, attachedFolderId);
+        }
+      }
 
       if (attachedFolder) {
         if (isOutsideGravity(cursorPos, attachedFolder)) {

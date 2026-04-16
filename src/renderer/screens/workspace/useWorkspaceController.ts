@@ -383,6 +383,9 @@ export function useWorkspaceController({
     folders: layoutFoldersForMagnetism,
     positionOverrides:
       projectMode.layoutActive || projectMode.focusModeActive ? projectMode.positionOverrides : undefined,
+    projectZones: projectMode.projectZones,
+    layoutActive: projectMode.layoutActive,
+    focusModeActive: projectMode.focusModeActive,
     setAgents,
     persistAgentPosition,
     attachAgentToFolder,

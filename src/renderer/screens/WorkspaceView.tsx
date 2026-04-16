@@ -138,6 +138,7 @@ export default function WorkspaceView({ workspace, onBack }: WorkspaceViewProps)
       <TutorialOverlay
         tutorialState={controller.tutorialState}
         dismissedStepId={controller.dismissedTutorialOverlayStepId}
+        onSkip={controller.skipTutorial}
       />
       <HeroSelectionOverlay
         workspacePath={workspace.path}

@@ -263,23 +263,23 @@ export default function ProjectPanel({
               <button
                 className={`pp-header-btn${layoutMode === 'manual' ? ' pp-header-btn--active' : ''}`}
                 onClick={() => onSetLayoutMode('manual')}
-                title="Keep windows where you place them"
+                title="Custom: keep windows where you place them"
               >
-                Manual
+                Custom
               </button>
               <button
                 className={`pp-header-btn${layoutMode === 'organized' ? ' pp-header-btn--active' : ''}`}
                 onClick={() => onSetLayoutMode('organized')}
-                title="Keep projects organized into panes"
+                title="Panes: auto-organize one project per pane"
               >
-                Organized
+                Panes
               </button>
               <button
                 className={`pp-header-btn${layoutMode === 'tiled' ? ' pp-header-btn--active' : ''}`}
                 onClick={() => onSetLayoutMode('tiled')}
-                title="Arrange project panes in a grid"
+                title="Tiles: grid of evenly sized panes"
               >
-                Tiled
+                Tiles
               </button>
               <button className="pp-header-btn" onClick={onSetAllVisible} title="Show all">
                 All

@@ -235,6 +235,16 @@ export const useWorkspaceTutorialCore = ({
     [tutorialEnabled]
   );
 
+  const skipTutorial = useCallback(() => {
+    updateTutorialState((current) => ({
+      ...current,
+      status: 'completed',
+      stepId: 'done',
+      updatedAt: Date.now(),
+    }));
+    setTutorialCompletionVisible(false);
+  }, []);
+
   const setTutorialPromptRunId = useCallback(
     (runId: string) => {
       setTutorialPromptRunIdLocal(runId);
@@ -1629,6 +1639,7 @@ export const useWorkspaceTutorialCore = ({
     advanceHeroIntro,
     advanceFocusDemoStep,
     completeFocusDemo,
+    skipTutorial,
     updateTutorial,
     ensureTutorialServer,
     tutorialPromptRunId,

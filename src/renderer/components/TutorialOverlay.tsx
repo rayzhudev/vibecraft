@@ -111,9 +111,11 @@ const STEP_FIXED_POSITION: Partial<Record<string, Position>> = {
 export default function TutorialOverlay({
   tutorialState,
   dismissedStepId,
+  onSkip,
 }: {
   tutorialState: TutorialState;
   dismissedStepId?: string | null;
+  onSkip?: () => void;
 }) {
   const stepId = tutorialState.stepId;
   const fallbackCopy = STEP_COPY[stepId];
@@ -197,6 +199,11 @@ export default function TutorialOverlay({
     <div className="tutorial-overlay" style={position} ref={overlayRef}>
       <div className="tutorial-overlay-header">
         <h3>{copy.title}</h3>
+        {onSkip && (
+          <button className="tutorial-overlay-skip" onClick={onSkip} title="Exit tutorial">
+            Exit tutorial
+          </button>
+        )}
       </div>
       <p>{copy.body}</p>
     </div>

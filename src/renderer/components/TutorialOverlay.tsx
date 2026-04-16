@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { TutorialState } from '../../shared/types';
 import { isTutorialActive } from '../tutorial/constants';
 
@@ -79,15 +79,15 @@ const STEP_COPY: Record<string, StepCopy> = {
   },
   'focus-demo-1': {
     title: 'Project Focus Mode',
-    body: 'Notice how all your cookie-clicker windows are now organized in one focused view. Click anywhere or press (Enter) to continue.',
+    body: 'You are now in Focus Mode. The cookie-clicker project is grouped together; the Projects tab in the top-left lets you add more. Click anywhere or press (Enter) to continue.',
   },
   'focus-demo-2': {
     title: 'Add Another Project',
-    body: 'Now click the doodle-jump project in the Projects panel on the left to add it to your focused view.',
+    body: 'Open the Projects tab (top-left) if it is closed, then click the check next to the doodle-jump project to add it to this focused view. You should see cookie-clicker and doodle-jump grouped together.',
   },
   'focus-explain': {
     title: 'Focus Made Simple',
-    body: 'When you have many projects, Focus Mode lets you zero in on one or more at a time — all their windows, neatly organized. Click anywhere to wrap up.',
+    body: 'When you have many projects, Focus Mode lets you zero in on one or more at a time — all their windows stay attached and neatly organized. Click anywhere to wrap up the tour.',
   },
 };
 
@@ -101,6 +101,12 @@ type Position = {
 const HERO_TOOLTIP_GAP_PX = 24;
 const HERO_TOOLTIP_OFFSET_X_PX = -32;
 const HERO_TOOLTIP_OFFSET_Y_PX = -48;
+
+const STEP_FIXED_POSITION: Partial<Record<string, Position>> = {
+  'focus-demo-1': { right: '28px', top: '120px' },
+  'focus-demo-2': { right: '28px', top: '96px' },
+  'focus-explain': { right: '28px', top: '120px' },
+};
 
 export default function TutorialOverlay({
   tutorialState,
@@ -125,9 +131,15 @@ export default function TutorialOverlay({
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const [pinnedPosition, setPinnedPosition] = useState<Position | null>(null);
   const pinnedPositionRef = useRef<Position | null>(null);
+  const fixedPosition = useMemo(() => STEP_FIXED_POSITION[stepId], [stepId]);
 
   useLayoutEffect(() => {
     if (!shouldRender) return;
+    if (fixedPosition) {
+      pinnedPositionRef.current = fixedPosition;
+      setPinnedPosition(fixedPosition);
+      return;
+    }
     let frame: number | null = null;
 
     const updatePosition = () => {
@@ -175,7 +187,7 @@ export default function TutorialOverlay({
         window.cancelAnimationFrame(frame);
       }
     };
-  }, [shouldRender]);
+  }, [fixedPosition, shouldRender]);
 
   const position = pinnedPosition ?? ({ right: '24px', bottom: '120px' } satisfies Position);
 

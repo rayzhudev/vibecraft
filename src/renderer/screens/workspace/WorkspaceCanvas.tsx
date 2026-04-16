@@ -452,16 +452,34 @@ export default function WorkspaceCanvas({ controller }: WorkspaceCanvasProps) {
     if (!projectMode.enabled) projectMode.toggleMode();
     if (!projectMode.panelOpen) projectMode.togglePanel();
     projectMode.focusProject(cookieClickerId);
+    projectMode.setLayoutMode('organized');
+    projectMode.refreshLayout();
+    projectMode.setAllProjectsVisible();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tutorialEnabled, tutorialState.stepId, tutorialState.createdIds?.folderId]);
 
   // Focus demo: detect when doodle-jump is added to focus and advance
   useEffect(() => {
     if (!tutorialEnabled || tutorialState.stepId !== 'focus-demo-2') return;
+    if (!projectMode.enabled) projectMode.toggleMode();
+    if (!projectMode.panelOpen) projectMode.togglePanel();
+    projectMode.setLayoutMode('organized');
+    projectMode.refreshLayout();
     if (projectMode.focusedProjectIds.size >= 2) {
       advanceFocusDemoStep();
     }
-  }, [tutorialEnabled, tutorialState.stepId, projectMode.focusedProjectIds.size, advanceFocusDemoStep]);
+  }, [
+    tutorialEnabled,
+    tutorialState.stepId,
+    projectMode.enabled,
+    projectMode.panelOpen,
+    projectMode.focusedProjectIds.size,
+    projectMode.toggleMode,
+    projectMode.togglePanel,
+    projectMode.setLayoutMode,
+    projectMode.refreshLayout,
+    advanceFocusDemoStep,
+  ]);
 
   const visibleGlobalAbilities =
     tutorialEnabled && abilityResolution.isGlobal ? tutorialPolicy.visibleGlobalAbilities : null;

@@ -546,10 +546,19 @@ export function useProjectMode(options: UseProjectModeOptions): ProjectModeRetur
 
   const toggleMode = useCallback(() => {
     setEnabled((prev) => {
-      if (!prev) setPanelOpen(true);
-      return !prev;
+      const next = !prev;
+      if (next) {
+        setPanelOpen(true);
+        setVisibleProjectIds((ids) => {
+          if (ids.size === 0) {
+            return new Set(folders.map((f) => f.id));
+          }
+          return ids;
+        });
+      }
+      return next;
     });
-  }, []);
+  }, [folders]);
 
   const togglePanel = useCallback(() => setPanelOpen((prev) => !prev), []);
 

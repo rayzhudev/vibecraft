@@ -63,8 +63,18 @@ afterEach(() => {
   fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
+function getPlatformAppDataRootForTest(): string {
+  if (process.platform === 'darwin') {
+    return path.join(tempDir, 'Library', 'Application Support');
+  }
+  if (process.platform === 'win32') {
+    return path.join(tempDir, 'AppData', 'Roaming');
+  }
+  return path.join(tempDir, '.config');
+}
+
 test('checkForPriorSettings finds prior app data outside the current install', () => {
-  const priorDir = path.join(tempDir, 'Library', 'Application Support', 'VibeCraft');
+  const priorDir = path.join(getPlatformAppDataRootForTest(), 'VibeCraft');
   fs.mkdirSync(priorDir, { recursive: true });
   fs.writeFileSync(path.join(priorDir, 'settings.json'), JSON.stringify({ heroModel: 'gpt-5' }), 'utf8');
 
@@ -74,19 +84,13 @@ test('checkForPriorSettings finds prior app data outside the current install', (
 });
 
 test('prior workspace detection prefers non-tutorial data over tutorial-only installs', () => {
-  const tutorialWorldPath = path.join(
-    tempDir,
-    'Library',
-    'Application Support',
-    'vibecraft',
-    'worlds',
-    'Tutorial'
-  );
+  const appDataRoot = getPlatformAppDataRootForTest();
+  const tutorialWorldPath = path.join(appDataRoot, 'vibecraft', 'worlds', 'Tutorial');
   const priorProjectsPath = path.join(tempDir, 'Documents', 'projects');
   fs.mkdirSync(tutorialWorldPath, { recursive: true });
   fs.mkdirSync(priorProjectsPath, { recursive: true });
 
-  const electronDir = path.join(tempDir, 'Library', 'Application Support', 'Electron');
+  const electronDir = path.join(appDataRoot, 'Electron');
   fs.mkdirSync(electronDir, { recursive: true });
   fs.writeFileSync(
     path.join(electronDir, 'workspaces.json'),
@@ -101,7 +105,7 @@ test('prior workspace detection prefers non-tutorial data over tutorial-only ins
     'utf8'
   );
 
-  const vibecraftDir = path.join(tempDir, 'Library', 'Application Support', 'VibeCraft');
+  const vibecraftDir = path.join(appDataRoot, 'VibeCraft');
   fs.mkdirSync(vibecraftDir, { recursive: true });
   fs.writeFileSync(path.join(vibecraftDir, 'settings.json'), JSON.stringify({ heroModel: 'gpt-5' }), 'utf8');
   fs.writeFileSync(
@@ -133,12 +137,13 @@ test('prior workspace detection prefers non-tutorial data over tutorial-only ins
 });
 
 test('prior settings detection prefers meaningful settings over emptier historical installs', () => {
+  const appDataRoot = getPlatformAppDataRootForTest();
   const prodProjectsPath = path.join(tempDir, 'Documents', 'prod-projects');
   const demoProjectsPath = path.join(tempDir, 'Documents', 'demo-projects');
   fs.mkdirSync(prodProjectsPath, { recursive: true });
   fs.mkdirSync(demoProjectsPath, { recursive: true });
 
-  const demoDir = path.join(tempDir, 'Library', 'Application Support', 'VibeCraft Dev');
+  const demoDir = path.join(appDataRoot, 'VibeCraft Dev');
   fs.mkdirSync(demoDir, { recursive: true });
   fs.writeFileSync(
     path.join(demoDir, 'settings.json'),
@@ -158,7 +163,7 @@ test('prior settings detection prefers meaningful settings over emptier historic
     'utf8'
   );
 
-  const prodDir = path.join(tempDir, 'Library', 'Application Support', 'VibeCraft');
+  const prodDir = path.join(appDataRoot, 'VibeCraft');
   fs.mkdirSync(prodDir, { recursive: true });
   fs.writeFileSync(
     path.join(prodDir, 'settings.json'),
@@ -182,6 +187,7 @@ test('prior settings detection prefers meaningful settings over emptier historic
 });
 
 test('backupAndImportSettings merges prior settings while preserving current workspace root and tutorial', () => {
+  const appDataRoot = getPlatformAppDataRootForTest();
   const currentWorkspaceDir = path.join(tempDir, 'CurrentWorkspace');
   const importedWorkspaceDir = path.join(tempDir, 'ImportedWorkspace');
   fs.mkdirSync(currentWorkspaceDir, { recursive: true });
@@ -209,7 +215,7 @@ test('backupAndImportSettings merges prior settings while preserving current wor
     'utf8'
   );
 
-  const priorDir = path.join(tempDir, 'Library', 'Application Support', 'VibeCraft');
+  const priorDir = path.join(appDataRoot, 'VibeCraft');
   fs.mkdirSync(priorDir, { recursive: true });
   fs.writeFileSync(
     path.join(priorDir, 'settings.json'),

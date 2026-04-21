@@ -195,7 +195,16 @@ export function useAgentMagnetism({
         }
       }
     },
-    [attachAgentToFolder, clearSnapLockForAgent, detachAgent, persistAgentPosition, resolveDragAttachment]
+    [
+      attachAgentToFolder,
+      clearSnapLockForAgent,
+      detachAgent,
+      focusModeActive,
+      layoutActive,
+      persistAgentPosition,
+      projectZones,
+      resolveDragAttachment,
+    ]
   );
 
   const computeAgentMovePatch = useCallback(
@@ -231,17 +240,22 @@ export function useAgentMagnetism({
         return (resolved.angleDeg * Math.PI) / 180;
       };
       let attachedFolderId = resolveDragAttachment(id, agent.attachedFolderId);
-      const attachedFolder = attachedFolderId
+      let attachedFolder = attachedFolderId
         ? foldersRef.current.find((folder) => folder.id === attachedFolderId)
         : undefined;
 
       // If we are organized into panes, treat a pane hit as the active target even before snap.
       if (!attachedFolder && projectZones && (layoutActive || focusModeActive)) {
         const zoneHit = projectZones.find(
-          (zone) => cursorPos.x >= zone.x && cursorPos.x <= zone.x + zone.w && cursorPos.y >= zone.y && cursorPos.y <= zone.y + zone.h
+          (zone) =>
+            cursorPos.x >= zone.x &&
+            cursorPos.x <= zone.x + zone.w &&
+            cursorPos.y >= zone.y &&
+            cursorPos.y <= zone.y + zone.h
         );
         if (zoneHit) {
           attachedFolderId = zoneHit.folderId;
+          attachedFolder = foldersRef.current.find((folder) => folder.id === attachedFolderId);
           pendingAttachRef.current.set(id, attachedFolderId);
         }
       }
@@ -301,7 +315,14 @@ export function useAgentMagnetism({
 
       return okResult();
     },
-    [resolveDragAttachment, updateMagnetizedFolders, clearSnapLockForAgent]
+    [
+      clearSnapLockForAgent,
+      focusModeActive,
+      layoutActive,
+      projectZones,
+      resolveDragAttachment,
+      updateMagnetizedFolders,
+    ]
   );
 
   const handleAgentMoveBatch = useCallback(

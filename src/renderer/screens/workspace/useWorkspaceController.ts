@@ -146,6 +146,7 @@ export interface WorkspaceController {
   advanceHeroIntro: () => void;
   advanceFocusDemoStep: () => void;
   completeFocusDemo: () => void;
+  skipTutorial: () => void;
   runCommand: (command: CommandInvocation) => Promise<CommandRunResult>;
   globalChatProps: GlobalChatProps;
   projectMode: ProjectModeReturn;

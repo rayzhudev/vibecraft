@@ -87,6 +87,7 @@ export type WorkspaceTutorialCore = {
   advanceHeroIntro: () => void;
   advanceFocusDemoStep: () => void;
   completeFocusDemo: () => void;
+  skipTutorial: () => void;
   updateTutorial: (updates: Partial<TutorialState>) => void;
   ensureTutorialServer: (scenario: TutorialScenario) => Promise<boolean>;
   tutorialPromptRunId: string | null;

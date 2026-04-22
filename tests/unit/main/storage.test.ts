@@ -186,6 +186,74 @@ test('prior settings detection prefers meaningful settings over emptier historic
   expect(detected.sourceDir).toBe(prodDir);
 });
 
+test('prior settings import prefers live installs over backup snapshots', () => {
+  const appDataRoot = getPlatformAppDataRootForTest();
+  const currentWorkspaceDir = path.join(tempDir, 'CurrentWorkspace');
+  const importedWorkspaceDir = path.join(tempDir, 'ImportedWorkspace');
+  fs.mkdirSync(currentWorkspaceDir, { recursive: true });
+  fs.mkdirSync(importedWorkspaceDir, { recursive: true });
+
+  fs.writeFileSync(
+    path.join(tempDir, 'settings.json'),
+    JSON.stringify({
+      workspacePath: '/current/projects/root',
+      heroProvider: 'claude',
+      tutorial: DEFAULT_TUTORIAL_STATE,
+    }),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(tempDir, 'workspaces.json'),
+    JSON.stringify([
+      { id: 'current', name: 'CurrentWorkspace', path: currentWorkspaceDir, lastAccessed: 10 },
+    ]),
+    'utf8'
+  );
+
+  const liveDir = path.join(appDataRoot, 'VibeCraft');
+  fs.mkdirSync(liveDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(liveDir, 'settings.json'),
+    JSON.stringify({
+      heroProvider: 'codex',
+      heroModel: 'gpt-5-live',
+      audio: { muted: true },
+    }),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(liveDir, 'workspaces.json'),
+    JSON.stringify([
+      { id: 'imported', name: 'ImportedWorkspace', path: importedWorkspaceDir, lastAccessed: 100 },
+    ]),
+    'utf8'
+  );
+
+  const backupDir = path.join(liveDir, 'import-backups', '2026-04-20T12-00-00-000Z');
+  fs.mkdirSync(backupDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(backupDir, 'settings.json'),
+    JSON.stringify({
+      heroProvider: 'codex',
+      heroModel: 'gpt-5-backup',
+      audio: { muted: false, volume: 0.1 },
+      defaultReasoningEffortByProvider: { codex: 'high' },
+    }),
+    'utf8'
+  );
+
+  const detected = checkForPriorSettings();
+  expect(detected.found).toBe(true);
+  expect(detected.sourceDir).toBe(liveDir);
+
+  const result = backupAndImportSettings();
+  expect(result.success).toBe(true);
+
+  const nextSettings = JSON.parse(fs.readFileSync(path.join(tempDir, 'settings.json'), 'utf8'));
+  expect(nextSettings.heroModel).toBe('gpt-5-live');
+  expect(nextSettings.audio).toEqual({ muted: true });
+});
+
 test('backupAndImportSettings merges prior settings while preserving current workspace root and tutorial', () => {
   const appDataRoot = getPlatformAppDataRootForTest();
   const currentWorkspaceDir = path.join(tempDir, 'CurrentWorkspace');

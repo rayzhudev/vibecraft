@@ -4,16 +4,13 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  pull_request: {}
 
 jobs:
   quality:
     runs-on: ubuntu-latest
+    env:
+      CI: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -35,9 +32,11 @@ jobs:
       - name: Unit tests
         run: bun run test:unit
 
-  integration:
+  mcp:
     runs-on: ubuntu-latest
     needs: quality
+    env:
+      CI: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,7 +44,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -56,5 +55,37 @@ jobs:
       - name: Install Playwright dependencies
         run: bunx playwright install --with-deps
 
-      - name: E2E integration tests
-        run: xvfb-run -a bun run test:e2e:integration
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: MCP tests
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" bun run test:mcp
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: quality
+    env:
+      CI: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright dependencies
+        run: bunx playwright install --with-deps
+
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: E2E tests
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" bun run test:e2e

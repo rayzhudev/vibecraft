@@ -765,6 +765,16 @@ function rankPriorSettingsCandidate(left: PriorSettingsCandidate, right: PriorSe
   return (left.sourceDir ?? '').localeCompare(right.sourceDir ?? '');
 }
 
+function rankPriorSettingsImportCandidate(
+  left: PriorSettingsCandidate,
+  right: PriorSettingsCandidate
+): number {
+  if (left.sourceKind !== right.sourceKind) {
+    return left.sourceKind === 'live' ? -1 : 1;
+  }
+  return rankPriorSettingsCandidate(left, right);
+}
+
 function getPriorSettingsCandidates(): PriorSettingsCandidate[] {
   const currentPath = path.resolve(getAppDataPath());
   const explicitCandidates = [
@@ -829,7 +839,8 @@ function getPriorSettingsCandidates(): PriorSettingsCandidate[] {
 }
 
 function getPriorSettingsSource(): PriorSettingsInfo {
-  const best = getPriorSettingsCandidates()[0];
+  const candidates = getPriorSettingsCandidates();
+  const best = [...candidates].sort(rankPriorSettingsImportCandidate)[0];
   if (!best) return { found: false };
   return {
     found: true,
@@ -846,7 +857,7 @@ export function checkForPriorSettings(): PriorSettingsInfo {
 
 export function getPriorWorkspacePreview(): PriorWorkspacePreview {
   const candidates = getPriorSettingsCandidates();
-  const source = candidates[0];
+  const source = [...candidates].sort(rankPriorSettingsImportCandidate)[0] ?? candidates[0];
   if (!source) {
     return { found: false, workspaces: [], sources: [] };
   }
@@ -920,7 +931,7 @@ export function backupAndImportSettings(): {
   sourceCount?: number;
 } {
   const candidates = getPriorSettingsCandidates();
-  const source = candidates[0];
+  const source = [...candidates].sort(rankPriorSettingsImportCandidate)[0];
   if (!source || candidates.every((candidate) => !candidate.settingsPath && !candidate.workspacesPath)) {
     return { success: false, error: 'No prior settings were found to import.' };
   }

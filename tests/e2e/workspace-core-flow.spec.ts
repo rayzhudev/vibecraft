@@ -160,6 +160,9 @@ test('workspace core flow persists settings and attachments', async () => {
       const folderCenter = await getCenter(folder);
       const stackPoint = { x: folderCenter.x + 300, y: folderCenter.y + 220 };
 
+      await page.getByTestId('workspace-canvas').click({ position: { x: 40, y: 40 } });
+      await expect(page.locator('.agent-entity.selected')).toHaveCount(0, { timeout: 5_000 });
+
       for (let i = 0; i < 5; i += 1) {
         await dragEntityTo(page, agents.nth(i), stackPoint);
       }

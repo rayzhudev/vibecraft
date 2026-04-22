@@ -76,14 +76,9 @@ const parseStructured = <T>(result: ToolCallResult): T => {
 };
 
 test('MCP server handles core calls and a happy workflow', async () => {
-  const { page, paths, cleanup } = await launchTestApp();
+  const { page, paths, cleanup } = await launchTestApp({ startInWorkspace: true });
   try {
     page.setDefaultTimeout(10_000);
-
-    await page.getByTestId('home-select-world').click();
-    const worldItem = page.getByTestId('world-item').first();
-    await expect(worldItem).toBeVisible();
-    await worldItem.click();
     await expect(page.getByTestId('workspace-canvas')).toBeVisible();
 
     const startResult = await page.evaluate(

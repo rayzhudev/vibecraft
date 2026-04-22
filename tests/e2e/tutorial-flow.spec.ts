@@ -52,6 +52,36 @@ const expectTooltipClearOfEntities = async (page: Page) => {
   }
 };
 
+test('startup onboarding prompt appears before entering tutorial from a legacy completed state', async () => {
+  const { page, cleanup } = await launchTestApp({
+    seedHeroProvider: false,
+    tutorialMode: false,
+    startInWorkspace: false,
+  });
+  page.setDefaultTimeout(15_000);
+
+  try {
+    await test.step('show startup tutorial choice on home screen', async () => {
+      const overlay = page.locator('.tour-opt-in-overlay');
+      await expect(overlay).toBeVisible();
+      await expect(overlay).toContainText('Welcome to VibeCraft');
+      await expect(page.getByTestId('home-select-world')).toBeVisible();
+    });
+
+    await test.step('continue into tutorial from startup prompt', async () => {
+      await page.getByRole('button', { name: 'Continue?' }).click();
+      const tutorialWorld = page.getByTestId('world-item').first();
+      await expect(tutorialWorld).toBeVisible();
+      await tutorialWorld.click();
+      await expect(page.getByTestId('workspace-canvas')).toBeVisible();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await expect(page.getByRole('dialog')).toContainText(/choose your hero/i);
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
 test('tutorial flow uses stubbed agent output and gates browser step (Claude)', async () => {
   const { page, cleanup } = await launchTestApp({
     seedHeroProvider: false,

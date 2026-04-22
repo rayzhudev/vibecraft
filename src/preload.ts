@@ -33,6 +33,8 @@ import type {
   ImportedCustomSound,
   McpSkillDescriptor,
   McpSkillId,
+  PriorWorkspacePreviewEntry,
+  PriorWorkspacePreviewSource,
 } from './shared/types';
 import type { CommandRunRequest, CommandRunResponse } from './shared/commands';
 import type { LayoutRequest, LayoutResponse } from './shared/layout';
@@ -43,6 +45,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
 loadRuntimeEnv();
+ipcRenderer.setMaxListeners(50);
 
 const isIpcSuccess = <T>(value: unknown): value is IpcSuccess<T> =>
   isRecord(value) && value.success === true && 'data' in value;
@@ -170,6 +173,60 @@ const electronAPI = {
     return unwrap(result, { id: 'tutorial-world', name: 'Tutorial', path: '', lastAccessed: Date.now() });
   },
 
+  resetTutorialWorld: async (): Promise<Workspace> => {
+    const result: IpcResult<Workspace> = await ipcRenderer.invoke('reset-tutorial-world');
+    return unwrap(result, { id: 'tutorial-world', name: 'Tutorial', path: '', lastAccessed: Date.now() });
+  },
+
+  checkForPriorSettings: async (): Promise<{
+    found: boolean;
+    sourceDir?: string;
+    settingsPath?: string;
+    workspacesPath?: string;
+  } | null> => {
+    const result: IpcResult<{
+      found: boolean;
+      sourceDir?: string;
+      settingsPath?: string;
+      workspacesPath?: string;
+    }> = await ipcRenderer.invoke('check-for-prior-settings');
+    return unwrap(result, null);
+  },
+
+  getPriorWorkspacePreview: async (): Promise<{
+    found: boolean;
+    sourceDir?: string;
+    workspaces: PriorWorkspacePreviewEntry[];
+    sources?: PriorWorkspacePreviewSource[];
+  } | null> => {
+    const result: IpcResult<{
+      found: boolean;
+      sourceDir?: string;
+      workspaces: PriorWorkspacePreviewEntry[];
+      sources?: PriorWorkspacePreviewSource[];
+    }> = await ipcRenderer.invoke('get-prior-workspace-preview');
+    return unwrap(result, null);
+  },
+
+  backupAndImportSettings: async (): Promise<{
+    success: boolean;
+    backupPath?: string;
+    error?: string;
+    importedCount?: number;
+    duplicateCount?: number;
+    sourceCount?: number;
+  }> => {
+    const result: IpcResult<{
+      success: boolean;
+      backupPath?: string;
+      error?: string;
+      importedCount?: number;
+      duplicateCount?: number;
+      sourceCount?: number;
+    }> = await ipcRenderer.invoke('backup-and-import-settings');
+    return unwrap(result, { success: false, error: 'IPC failed' });
+  },
+
   addRecentWorkspace: async (workspace: Workspace): Promise<boolean> => {
     const result: IpcResult<boolean> = await ipcRenderer.invoke('add-recent-workspace', workspace);
     return unwrap(result, false);
@@ -183,6 +240,18 @@ const electronAPI = {
   selectFolder: async (options?: { title?: string }): Promise<string | null> => {
     const result: IpcResult<string | null> = await ipcRenderer.invoke('select-folder', options);
     return unwrap(result, null);
+  },
+
+  selectAgentFiles: async (
+    workspacePath: string,
+    options?: { title?: string }
+  ): Promise<import('./shared/types').SelectedAgentFile[]> => {
+    const result: IpcResult<import('./shared/types').SelectedAgentFile[]> = await ipcRenderer.invoke(
+      'select-agent-files',
+      workspacePath,
+      options
+    );
+    return unwrap(result, []);
   },
 
   importCustomSound: async (): Promise<ImportedCustomSound | null> => {
@@ -491,7 +560,8 @@ const electronAPI = {
     x: number,
     y: number,
     width: number,
-    height: number
+    height: number,
+    originFolderId?: string
   ): Promise<{ success: boolean; panel?: BrowserPanel }> => {
     const result: IpcResult<{ panel: BrowserPanel }> = await ipcRenderer.invoke(
       'create-browser-panel',
@@ -500,7 +570,8 @@ const electronAPI = {
       x,
       y,
       width,
-      height
+      height,
+      originFolderId
     );
     return toSuccess(result);
   },
@@ -535,6 +606,7 @@ const electronAPI = {
     relativePath: string,
     x: number,
     y: number,
+    originFolderId?: string,
     width?: number,
     height?: number
   ): Promise<{ success: boolean; terminal?: TerminalPanel; error?: string }> => {
@@ -544,6 +616,7 @@ const electronAPI = {
       relativePath,
       x,
       y,
+      originFolderId,
       width,
       height
     );

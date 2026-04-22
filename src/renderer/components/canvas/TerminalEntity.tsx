@@ -44,6 +44,8 @@ interface TerminalEntityProps {
   onResizeEnd?: (width: number, height: number) => void;
   onBringToFront?: () => void;
   onProcessChange?: (processLabel: string | null) => void;
+  forcedBounds?: { x: number; y: number; width: number; height: number };
+  lockedToLayout?: boolean;
 }
 
 function TerminalEntity({
@@ -67,6 +69,8 @@ function TerminalEntity({
   onResizeEnd,
   onBringToFront,
   onProcessChange,
+  forcedBounds,
+  lockedToLayout = false,
 }: TerminalEntityProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -232,6 +236,14 @@ function TerminalEntity({
     rootMargin: '120px',
     onceVisible: true,
   });
+  const effectiveBounds = forcedBounds
+    ? forcedBounds
+    : {
+        x: position.x,
+        y: position.y,
+        width: panelSize.width,
+        height: panelSize.height,
+      };
 
   const syncTerminalGeometry = useCallback(() => {
     if (!isReady || !termRef.current || !fitAddonRef.current) {
@@ -308,6 +320,11 @@ function TerminalEntity({
       scheduleFit();
     }
   }, [panelSize, isPanelResizing, scheduleFit]);
+
+  useEffect(() => {
+    if (!lockedToLayout) return;
+    scheduleFit();
+  }, [effectiveBounds.width, effectiveBounds.height, lockedToLayout, scheduleFit]);
 
   useEffect(() => {
     return () => {
@@ -653,9 +670,12 @@ function TerminalEntity({
       e.preventDefault();
       onSelect?.();
       bringToFront();
+      if (lockedToLayout) {
+        return;
+      }
       startDrag(e);
     },
-    [bringToFront, onSelect, startDrag]
+    [bringToFront, lockedToLayout, onSelect, startDrag]
   );
 
   const handleTerminalClick = useCallback(
@@ -688,10 +708,10 @@ function TerminalEntity({
       className={`terminal-panel ${previewed && !selected ? 'previewed' : ''} ${isPanelResizing ? 'resizing' : ''} ${isDragging ? 'dragging' : ''}`}
       style={{
         position: 'absolute',
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        width: `${panelSize.width}px`,
-        height: `${panelSize.height}px`,
+        left: `${effectiveBounds.x}px`,
+        top: `${effectiveBounds.y}px`,
+        width: `${effectiveBounds.width}px`,
+        height: `${effectiveBounds.height}px`,
         cursor: isDragging ? 'grabbing' : 'default',
         zIndex: zIndex,
       }}
@@ -760,11 +780,13 @@ function TerminalEntity({
           <div className="terminal-dormant-placeholder">Terminal activates when nearby</div>
         )}
       </div>
-      <div
-        className="panel-resize-handle terminal-resize-handle"
-        onMouseDown={handleResizeStart}
-        title="Resize terminal"
-      />
+      {!lockedToLayout && (
+        <div
+          className="panel-resize-handle terminal-resize-handle"
+          onMouseDown={handleResizeStart}
+          title="Resize terminal"
+        />
+      )}
       {showSelectionShield && (
         <div className="windowed-selection-shield" data-testid="windowed-selection-shield" aria-hidden />
       )}
@@ -781,6 +803,11 @@ const areTerminalEntityPropsEqual = (previous: TerminalEntityProps, next: Termin
   previous.y === next.y &&
   previous.width === next.width &&
   previous.height === next.height &&
+  previous.forcedBounds?.x === next.forcedBounds?.x &&
+  previous.forcedBounds?.y === next.forcedBounds?.y &&
+  previous.forcedBounds?.width === next.forcedBounds?.width &&
+  previous.forcedBounds?.height === next.forcedBounds?.height &&
+  previous.lockedToLayout === next.lockedToLayout &&
   previous.zIndex === next.zIndex &&
   previous.selected === next.selected &&
   previous.previewed === next.previewed &&

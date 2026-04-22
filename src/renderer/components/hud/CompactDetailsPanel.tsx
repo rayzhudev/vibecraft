@@ -204,10 +204,11 @@ export default function CompactDetailsPanel({
     defaultModelAttemptedRef.current = next;
 
     void (async () => {
-      setHeroModelDraft(next);
       setHeroModelError(null);
       const result = await commitHeroModel(next);
-      if (!result.ok) {
+      if (result.ok) {
+        setHeroModelDraft(next);
+      } else {
         setHeroModelDraft(heroModel);
         setHeroModelError(result.error ?? 'Failed to set default hero model');
       }

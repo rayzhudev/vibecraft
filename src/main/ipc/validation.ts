@@ -177,6 +177,7 @@ export const SpawnAgentSchema = z.object({
   color: z.string(),
   x: FiniteNumber,
   y: FiniteNumber,
+  attachedFolderId: EntityId.optional(),
 });
 
 export const DestroyAgentSchema = z.object({
@@ -251,6 +252,7 @@ export const CreateBrowserPanelSchema = z.object({
   y: FiniteNumber,
   width: PositiveFiniteNumber,
   height: PositiveFiniteNumber,
+  originFolderId: EntityId.optional(),
 });
 
 export const DeleteBrowserPanelSchema = z.object({
@@ -268,6 +270,7 @@ export const UpdateBrowserPanelSchema = z.object({
     y: FiniteNumber.optional(),
     width: PositiveFiniteNumber.optional(),
     height: PositiveFiniteNumber.optional(),
+    originFolderId: EntityId.optional(),
   }),
 });
 
@@ -279,6 +282,7 @@ export const CreateTerminalSchema = z.object({
   relativePath: z.string().optional(),
   x: FiniteNumber,
   y: FiniteNumber,
+  originFolderId: EntityId.optional(),
   width: PositiveFiniteNumber.optional(),
   height: PositiveFiniteNumber.optional(),
 });

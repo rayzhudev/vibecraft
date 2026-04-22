@@ -1,0 +1,20 @@
+{
+  "extends": "./electron-builder.json",
+  "appId": "com.vibecraft.app.dev",
+  "productName": "VibeCraft Dev",
+  "artifactName": "${productName}-${version}-${arch}.${ext}",
+  "directories": {
+    "output": "release/dev"
+  },
+  "protocols": [
+    {
+      "name": "VibeCraft Dev",
+      "schemes": ["vibecraft-dev"]
+    }
+  ],
+  "extraMetadata": {
+    "name": "vibecraft-dev",
+    "productName": "VibeCraft Dev",
+    "vibecraftStorageNamespace": "dev"
+  }
+}

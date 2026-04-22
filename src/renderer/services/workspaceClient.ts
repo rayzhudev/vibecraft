@@ -20,7 +20,19 @@ import type {
   McpSkillId,
 } from '../../shared/types';
 
-const api = window.electronAPI;
+const createMockElectronApi = () =>
+  new Proxy(
+    {},
+    {
+      get: () => () => Promise.resolve(undefined),
+    }
+  ) as typeof window.electronAPI;
+
+type ElectronApiType = typeof window.electronAPI;
+const api: ElectronApiType =
+  (typeof window !== 'undefined' && (window as Window & { electronAPI?: ElectronApiType }).electronAPI) ||
+  (globalThis as unknown as { electronAPI?: ElectronApiType }).electronAPI ||
+  createMockElectronApi();
 
 export const workspaceClient = {
   // Loaders
@@ -135,8 +147,9 @@ export const workspaceClient = {
     x: number,
     y: number,
     width: number,
-    height: number
-  ) => api.createBrowserPanel(workspacePath, url, x, y, width, height),
+    height: number,
+    originFolderId?: string
+  ) => api.createBrowserPanel(workspacePath, url, x, y, width, height, originFolderId),
   deleteBrowserPanel: (workspacePath: string, id: string) => api.deleteBrowserPanel(workspacePath, id),
 
   // Terminals
@@ -146,9 +159,10 @@ export const workspaceClient = {
     relativePath: string,
     x: number,
     y: number,
+    originFolderId?: string,
     width?: number,
     height?: number
-  ) => api.createTerminal(workspacePath, relativePath, x, y, width, height),
+  ) => api.createTerminal(workspacePath, relativePath, x, y, originFolderId, width, height),
   updateTerminal: (workspacePath: string, terminalId: string, updates: Partial<TerminalPanel>) =>
     api.updateTerminal(workspacePath, terminalId, updates),
   deleteTerminal: (workspacePath: string, terminalId: string) =>

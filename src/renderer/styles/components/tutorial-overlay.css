@@ -15,8 +15,10 @@
 
 .tutorial-overlay-header {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: space-between;
   margin-bottom: 0.5rem;
 }
 
@@ -25,6 +27,21 @@
   font-size: 1.1rem;
   color: var(--text-primary);
   font-family: var(--font-display);
+}
+
+.tutorial-overlay-skip {
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 8px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.tutorial-overlay-skip:hover {
+  color: var(--text-primary);
+  border-color: var(--text-primary);
 }
 
 .tutorial-overlay p {

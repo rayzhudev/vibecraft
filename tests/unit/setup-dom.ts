@@ -1,8 +1,5 @@
 import { JSDOM } from 'jsdom';
 
-process.env.VIBECRAFT_TEST_MODE = '1';
-process.env.VIBECRAFT_TEST_DISABLE_GIT = '0';
-
 // Node 22+ defines some globals (e.g. navigator) as getter-only; use defineProperty as fallback.
 function setGlobal(key: string, value: unknown): void {
   try {
@@ -12,8 +9,11 @@ function setGlobal(key: string, value: unknown): void {
   }
 }
 
-// Provide a minimal DOM/window for tests that may pull renderer modules under the main config.
-if (typeof (globalThis as any).window === 'undefined') {
+// Ensure a DOM is available (covers accidental node env runs on renderer tests)
+if (
+  typeof (globalThis as any).window === 'undefined' ||
+  typeof (globalThis as any).document === 'undefined'
+) {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost' });
   const { window } = dom;
   setGlobal('window', window);
@@ -31,17 +31,20 @@ if (typeof (globalThis as any).window === 'undefined') {
     window.requestAnimationFrame ?? ((cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 16))
   );
   setGlobal('cancelAnimationFrame', window.cancelAnimationFrame ?? clearTimeout);
+}
+
+// Ensure a stub electronAPI exists
+if (!(globalThis as any).electronAPI) {
   setGlobal(
     'electronAPI',
-    (window as any).electronAPI ??
-      new Proxy(
-        {},
-        {
-          get:
-            () =>
-            (..._args: unknown[]) =>
-              Promise.resolve(undefined),
-        }
-      )
+    new Proxy(
+      {},
+      {
+        get:
+          () =>
+          (..._args: unknown[]) =>
+            Promise.resolve(undefined),
+      }
+    )
   );
 }

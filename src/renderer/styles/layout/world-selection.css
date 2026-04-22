@@ -99,6 +99,43 @@
   margin-bottom: 48px;
 }
 
+.worlds-section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.worlds-section-note {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--world-text-hint, rgba(255, 255, 255, 0.74));
+}
+
+.prior-source-group {
+  margin: 0 0 20px;
+}
+
+.prior-source-group-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0 0 10px;
+}
+
+.prior-source-group-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 16px;
+}
+
+.prior-source-group-meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--world-text-hint, rgba(255, 255, 255, 0.74));
+}
+
 .worlds-section h2,
 .world-abilities-section h2 {
   font-size: 24px;
@@ -274,6 +311,25 @@
   );
 }
 
+.world-item--prior {
+  cursor: default;
+  border-color: rgba(70, 130, 180, 0.85);
+  background: linear-gradient(135deg, rgba(44, 86, 132, 0.88) 0%, rgba(61, 105, 156, 0.68) 100%);
+}
+
+.world-item--prior:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: rgba(70, 130, 180, 0.85);
+  background: linear-gradient(135deg, rgba(44, 86, 132, 0.88) 0%, rgba(61, 105, 156, 0.68) 100%);
+}
+
+.world-item--duplicate,
+.world-item--duplicate:hover {
+  border-color: rgba(120, 140, 160, 0.75);
+  background: linear-gradient(135deg, rgba(58, 72, 88, 0.82) 0%, rgba(74, 92, 112, 0.64) 100%);
+}
+
 .world-icon {
   font-size: 48px;
   margin-right: 20px;
@@ -308,6 +364,14 @@
   text-overflow: ellipsis;
 }
 
+.world-source {
+  margin: -2px 0 8px 0;
+  font-size: 11px;
+  color: var(--world-text-hint, rgba(255, 255, 255, 0.75));
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 .world-meta {
   margin: 0;
   font-size: 12px;
@@ -318,6 +382,79 @@
   display: flex;
   align-items: center;
   margin-left: 16px;
+}
+
+.world-abilities--prior-import {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  min-width: 132px;
+}
+
+.world-import-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.world-import-all-btn,
+.world-import-open-btn {
+  background: linear-gradient(145deg, rgba(30, 144, 255, 0.92), rgba(72, 187, 255, 0.82));
+  border: 2px solid rgba(125, 211, 252, 0.6);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 14px;
+  cursor: pointer;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.world-import-all-btn:hover,
+.world-import-open-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.24);
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+.world-import-open-btn:disabled,
+.world-import-all-btn:disabled {
+  cursor: wait;
+  opacity: 0.72;
+  transform: none;
+  box-shadow: none;
+}
+
+.world-import-open-btn:disabled {
+  cursor: not-allowed;
+}
+
+.world-import-summary,
+.world-import-error {
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+
+.world-import-summary {
+  color: #d7f6df;
+}
+
+.world-import-error {
+  color: #ffd5d5;
 }
 
 .delete-button {
@@ -489,6 +626,11 @@
     margin-left: 0;
     margin-top: 16px;
     justify-content: center;
+  }
+
+  .worlds-section-header {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .ability-buttons {

@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import SettingsScreen from '../../../src/renderer/screens/SettingsScreen';
 import { useSoundPlayer } from '../../../src/renderer/hooks/useSoundPlayer';
-import { saveSettings } from '../../../src/renderer/state/appSettingsStore';
+import { saveSettings, useAppSettings } from '../../../src/renderer/state/appSettingsStore';
 import { workspaceClient } from '../../../src/renderer/services/workspaceClient';
 import { toCustomSoundSource } from '../../../src/renderer/services/sfx';
 import type { AgentProvider } from '../../../src/shared/types';
@@ -14,6 +14,7 @@ vi.mock('../../../src/renderer/hooks/useSoundPlayer', () => ({
 
 vi.mock('../../../src/renderer/state/appSettingsStore', () => ({
   saveSettings: vi.fn(),
+  useAppSettings: vi.fn(() => ({ status: 'loaded', settings: {} })),
 }));
 
 vi.mock('../../../src/renderer/services/workspaceClient', () => ({
@@ -24,12 +25,18 @@ vi.mock('../../../src/renderer/services/workspaceClient', () => ({
 
 const mockedUseSoundPlayer = vi.mocked(useSoundPlayer);
 const mockedSaveSettings = vi.mocked(saveSettings);
+const mockedUseAppSettings = vi.mocked(useAppSettings);
 const mockedImportCustomSound = vi.mocked(workspaceClient.importCustomSound);
 
 const renderSettingsScreen = () =>
   render(
     <SettingsScreen
       license={null}
+      priorImportAvailable={false}
+      priorSettingsDetected={false}
+      priorImportPending={false}
+      priorImportError={null}
+      onImportPriorProjects={vi.fn(async () => true)}
       onStartCheckout={vi.fn(async () => ({ success: true }))}
       onManageBilling={vi.fn(async () => ({ success: true }))}
       onStartPairing={vi.fn(async () => ({ success: true }))}
@@ -108,6 +115,7 @@ const expandLoadout = () => {
 describe('SettingsScreen', () => {
   beforeEach(() => {
     mockedSaveSettings.mockReset();
+    mockedUseAppSettings.mockReturnValue({ status: 'loaded', settings: {} });
     mockedImportCustomSound.mockReset();
     mockedImportCustomSound.mockResolvedValue(null);
   });

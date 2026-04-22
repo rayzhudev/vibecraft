@@ -1,5 +1,6 @@
 import { app, ipcMain, dialog, BrowserWindow, shell } from 'electron';
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { storage } from './services/storage';
 import { detachAgentsForFolder } from './services/workspace';
 import { processManager } from './services/agents/processManager';
@@ -21,6 +22,7 @@ import type {
   LicenseCheckoutStart,
   LicensePairingStart,
   ImportedCustomSound,
+  SelectedAgentFile,
   UpdateStatus,
 } from '../shared/types';
 import { logger } from './logger';
@@ -539,6 +541,34 @@ export async function registerIpcHandlers(): Promise<void> {
     }
   );
 
+  ipcMain.handle(
+    'reset-tutorial-world',
+    async (): Promise<IpcResult<ReturnType<typeof storage.resetTutorialWorldState>>> => {
+      return handleIpc(() => storage.resetTutorialWorldState());
+    }
+  );
+
+  ipcMain.handle(
+    'check-for-prior-settings',
+    async (): Promise<IpcResult<ReturnType<typeof storage.checkForPriorSettings>>> => {
+      return handleIpc(() => storage.checkForPriorSettings());
+    }
+  );
+
+  ipcMain.handle(
+    'get-prior-workspace-preview',
+    async (): Promise<IpcResult<ReturnType<typeof storage.getPriorWorkspacePreview>>> => {
+      return handleIpc(() => storage.getPriorWorkspacePreview());
+    }
+  );
+
+  ipcMain.handle(
+    'backup-and-import-settings',
+    async (): Promise<IpcResult<ReturnType<typeof storage.backupAndImportSettings>>> => {
+      return handleIpc(() => storage.backupAndImportSettings());
+    }
+  );
+
   ipcMain.handle('agentconnect-bootstrap', async (): Promise<IpcResult<ProviderRegistrySnapshot>> => {
     return handleIpc(() => getProviderRegistry().getSnapshot());
   });
@@ -864,6 +894,39 @@ export async function registerIpcHandlers(): Promise<void> {
       return result.canceled ? null : result.filePaths[0];
     });
   });
+
+  ipcMain.handle(
+    'select-agent-files',
+    async (_event, workspacePath: unknown, options: unknown): Promise<IpcResult<SelectedAgentFile[]>> => {
+      const pathValidated = validate(WorkspacePath, workspacePath);
+      if (!pathValidated.success) return pathValidated;
+      const optionsValidated = validate(SelectFolderOptionsSchema, options);
+      if (!optionsValidated.success) return optionsValidated;
+
+      return handleIpc(async () => {
+        const result = await dialog.showOpenDialog({
+          properties: ['openFile', 'multiSelections'],
+          title: optionsValidated.data?.title || 'Select Files',
+        });
+        if (result.canceled || result.filePaths.length === 0) {
+          return [];
+        }
+        const root = path.resolve(pathValidated.data);
+        return result.filePaths.map((filePath) => {
+          const absolutePath = path.resolve(filePath);
+          const relativePath = path.relative(root, absolutePath);
+          const inWorkspace =
+            Boolean(relativePath) && !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
+          return {
+            path: absolutePath,
+            name: path.basename(absolutePath),
+            relativePath: inWorkspace ? relativePath : undefined,
+            inWorkspace,
+          };
+        });
+      });
+    }
+  );
 
   ipcMain.handle('audio-import-custom-sound', async (): Promise<IpcResult<ImportedCustomSound | null>> => {
     return handleIpc(async () => {
@@ -1224,7 +1287,8 @@ export async function registerIpcHandlers(): Promise<void> {
     if (!validated.success) return validated;
 
     return handleIpc(async () => {
-      const { workspacePath, provider, model, name, displayName, color, x, y } = validated.data;
+      const { workspacePath, provider, model, name, displayName, color, x, y, attachedFolderId } =
+        validated.data;
       const settings = storage.loadSettings();
       const defaultReasoning = resolveDefaultReasoningEffort(settings, provider);
       const rememberedModel = settings.lastAgentModelByProvider?.[provider]?.trim() ?? '';
@@ -1241,7 +1305,8 @@ export async function registerIpcHandlers(): Promise<void> {
         workspacePath,
         x,
         y,
-        status: 'offline',
+        status: attachedFolderId ? 'online' : 'offline',
+        attachedFolderId,
         contextLeft: 100,
         agentConnectSessionId: null,
         providerSessionId: null,
@@ -1484,9 +1549,18 @@ export async function registerIpcHandlers(): Promise<void> {
       x: unknown,
       y: unknown,
       width: unknown,
-      height: unknown
+      height: unknown,
+      originFolderId: unknown
     ): Promise<IpcResult<{ panel: ReturnType<typeof browser.createBrowserPanel> }>> => {
-      const validated = validate(CreateBrowserPanelSchema, { workspacePath, url, x, y, width, height });
+      const validated = validate(CreateBrowserPanelSchema, {
+        workspacePath,
+        url,
+        x,
+        y,
+        width,
+        height,
+        originFolderId,
+      });
       if (!validated.success) return validated;
 
       return handleIpc(() => {
@@ -1496,7 +1570,8 @@ export async function registerIpcHandlers(): Promise<void> {
           validated.data.x,
           validated.data.y,
           validated.data.width,
-          validated.data.height
+          validated.data.height,
+          validated.data.originFolderId
         );
         return { panel };
       });
@@ -1549,6 +1624,7 @@ export async function registerIpcHandlers(): Promise<void> {
       relativePath: unknown,
       x: unknown,
       y: unknown,
+      originFolderId: unknown,
       width: unknown,
       height: unknown
     ): Promise<
@@ -1559,6 +1635,7 @@ export async function registerIpcHandlers(): Promise<void> {
         relativePath,
         x,
         y,
+        originFolderId,
         width,
         height,
       });
@@ -1570,6 +1647,7 @@ export async function registerIpcHandlers(): Promise<void> {
           validated.data.relativePath,
           validated.data.x,
           validated.data.y,
+          validated.data.originFolderId,
           validated.data.width,
           validated.data.height
         );

@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -27,4 +28,18 @@ const subprocess = bun.spawn({
 });
 
 const exitCode = await subprocess.exited;
-process.exit(exitCode);
+if (exitCode !== 0) {
+  process.exit(exitCode);
+}
+
+if (process.platform === 'darwin') {
+  const codesign = spawnSync('codesign', ['--force', '--sign', '-', outputFile], {
+    stdio: 'inherit',
+  });
+
+  if (codesign.status !== 0) {
+    process.exit(codesign.status ?? 1);
+  }
+}
+
+process.exit(0);

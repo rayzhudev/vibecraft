@@ -35,10 +35,20 @@ export type CommandContext = {
 type CommandHandlerResult = Promise<CommandRunResult | void> | CommandRunResult | void;
 
 export type CommandHandlers = {
-  createAgent: (provider: AgentProvider, x: number, y: number) => CommandHandlerResult;
+  createAgent: (
+    provider: AgentProvider,
+    x: number,
+    y: number,
+    attachedFolderId?: string
+  ) => CommandHandlerResult;
   createFolder: (name: string, x: number, y: number) => CommandHandlerResult;
-  createBrowser: (x: number, y: number) => CommandHandlerResult;
-  createTerminal: (relativePath: string, x: number, y: number) => CommandHandlerResult;
+  createBrowser: (x: number, y: number, originFolderId?: string) => CommandHandlerResult;
+  createTerminal: (
+    relativePath: string,
+    x: number,
+    y: number,
+    originFolderId?: string
+  ) => CommandHandlerResult;
   openAgentTerminal: (agentId: string) => CommandHandlerResult;
   refreshBrowser: (id: string) => CommandHandlerResult;
   clearAgentTerminalState: (agentId: string) => CommandHandlerResult;
@@ -194,6 +204,12 @@ const getEntityTypeFromArgs = (args: CommandArgs | undefined): EntityType | unde
     : undefined;
 };
 
+const getOptionalStringFromArgs = (args: CommandArgs | undefined, key: string): string | undefined => {
+  if (!args || typeof args !== 'object') return undefined;
+  const value = (args as Record<string, unknown>)[key];
+  return typeof value === 'string' && value.trim() ? value : undefined;
+};
+
 const commandDefinitions: CommandDefinition[] = [
   {
     id: 'create-agent-claude',
@@ -205,7 +221,12 @@ const commandDefinitions: CommandDefinition[] = [
       if ('error' in placement) {
         return { ok: false, error: placement.error };
       }
-      return handlers.createAgent('claude', placement.x, placement.y);
+      return handlers.createAgent(
+        'claude',
+        placement.x,
+        placement.y,
+        getOptionalStringFromArgs(args, 'attachedFolderId')
+      );
     },
   },
   {
@@ -218,7 +239,12 @@ const commandDefinitions: CommandDefinition[] = [
       if ('error' in placement) {
         return { ok: false, error: placement.error };
       }
-      return handlers.createAgent('codex', placement.x, placement.y);
+      return handlers.createAgent(
+        'codex',
+        placement.x,
+        placement.y,
+        getOptionalStringFromArgs(args, 'attachedFolderId')
+      );
     },
   },
   {
@@ -257,7 +283,13 @@ const commandDefinitions: CommandDefinition[] = [
         resolvedPath === '.'
           ? undefined
           : context.folders.find((folder) => folder.relativePath === resolvedPath);
-      return handlers.createTerminal(originFolder?.relativePath ?? resolvedPath, placement.x, placement.y);
+      const originFolderId = getIdFromArgs(args, 'originFolderId') ?? originFolder?.id;
+      return handlers.createTerminal(
+        originFolder?.relativePath ?? resolvedPath,
+        placement.x,
+        placement.y,
+        originFolderId
+      );
     },
   },
   {
@@ -270,7 +302,8 @@ const commandDefinitions: CommandDefinition[] = [
       if ('error' in placement) {
         return { ok: false, error: placement.error };
       }
-      return handlers.createBrowser(placement.x, placement.y);
+      const originFolderId = getIdFromArgs(args, 'originFolderId');
+      return handlers.createBrowser(placement.x, placement.y, originFolderId);
     },
   },
   {

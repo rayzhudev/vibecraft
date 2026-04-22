@@ -33,6 +33,11 @@ export const getAllowedAbilitiesForStep = (
     case 'open-browser-1':
     case 'open-browser-2':
       return ['create-browser'];
+    case 'focus-demo-1':
+    case 'focus-demo-2':
+    case 'focus-explain':
+    case 'import-prompt':
+      return null; // all abilities allowed during focus demo
     case 'hero-provider':
     case 'world-select':
     case 'hero-intro':
@@ -75,6 +80,11 @@ export const getVisibleGlobalAbilitiesForStep = (step: TutorialStep): string[] |
     case 'open-browser-1':
     case 'open-browser-2':
       return ['create-agent-claude', 'create-folder', 'create-terminal', 'create-browser'];
+    case 'focus-demo-1':
+    case 'focus-demo-2':
+    case 'focus-explain':
+    case 'import-prompt':
+      return null; // all abilities visible
     case 'hero-provider':
     case 'world-select':
     case 'hero-intro':
@@ -159,6 +169,13 @@ export const getTutorialSpotlightSelector = (
       }
       return selectors.length > 0 ? selectors : null;
     }
+    case 'focus-demo-1':
+    case 'focus-explain':
+      return '.tutorial-overlay';
+    case 'focus-demo-2':
+      return '.hud-tab-btn'; // spotlight the Projects panel button
+    case 'import-prompt':
+      return null;
     case 'hero-provider':
       return null;
     case 'hero-intro':

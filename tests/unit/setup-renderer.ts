@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { vi } from 'vitest';
 import type { ElectronAPI } from '../../src/shared/types';
+import { JSDOM } from 'jsdom';
 
 const noop = () => {};
 const asyncValue = <T>(value: T) =>
@@ -14,6 +15,23 @@ const syncValue = <T>(value: T) =>
     return value;
   });
 
+// Ensure a DOM exists even if jsdom environment is not applied for some reason.
+if (typeof (globalThis as any).window === 'undefined') {
+  const dom = new JSDOM('<!doctype html><html><body></body></html>');
+  const { window } = dom;
+  (globalThis as any).window = window;
+  (globalThis as any).document = window.document;
+  (globalThis as any).navigator = window.navigator;
+  (globalThis as any).HTMLElement = window.HTMLElement;
+  (globalThis as any).localStorage = window.localStorage;
+  (globalThis as any).getComputedStyle = window.getComputedStyle;
+  (globalThis as any).matchMedia =
+    window.matchMedia ?? (() => ({ matches: false, addListener() {}, removeListener() {} }));
+  (globalThis as any).requestAnimationFrame =
+    window.requestAnimationFrame ?? ((cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 16));
+  (globalThis as any).cancelAnimationFrame = window.cancelAnimationFrame ?? clearTimeout;
+}
+
 const electronAPI: ElectronAPI = {
   isTestMode: true,
   isProfileMode: false,
@@ -26,9 +44,16 @@ const electronAPI: ElectronAPI = {
     path: '/tmp/Vibecraft',
     lastAccessed: Date.now(),
   }),
+  resetTutorialWorld: asyncValue({
+    id: 'tutorial-world',
+    name: 'Vibecraft',
+    path: '/tmp/Vibecraft',
+    lastAccessed: Date.now(),
+  }),
   addRecentWorkspace: asyncValue(true),
   removeRecentWorkspace: asyncValue(true),
   selectFolder: asyncValue(null),
+  selectAgentFiles: asyncValue([]),
   importCustomSound: asyncValue(null),
   startMcpServer: asyncValue({ success: false, error: 'Not mocked' }),
   stopMcpServer: asyncValue({ success: true }),

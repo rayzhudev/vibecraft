@@ -4,10 +4,16 @@ import SettingsSidebar from './settings/SettingsSidebar';
 import SoundPackSection from './settings/SoundPackSection';
 import BillingSection from './settings/BillingSection';
 import ThemeSection from './settings/ThemeSection';
+import ProjectsSection from './settings/ProjectsSection';
 import type { SettingsSection } from './settings/settingsNav';
 
 interface SettingsScreenProps {
   license: LicenseStatus | null;
+  priorImportAvailable: boolean;
+  priorSettingsDetected: boolean;
+  priorImportPending: boolean;
+  priorImportError: string | null;
+  onImportPriorProjects: () => void | Promise<boolean>;
   onStartCheckout: (plan: LicenseCheckoutPlan) => Promise<{ success: boolean; error?: string }>;
   onManageBilling: () => Promise<{ success: boolean; error?: string; url?: string }>;
   onStartPairing: () => Promise<{ success: boolean; code?: string; expiresAt?: string; error?: string }>;
@@ -17,6 +23,11 @@ interface SettingsScreenProps {
 
 export default function SettingsScreen({
   license,
+  priorImportAvailable,
+  priorSettingsDetected,
+  priorImportPending,
+  priorImportError,
+  onImportPriorProjects,
   onStartCheckout,
   onManageBilling,
   onStartPairing,
@@ -32,6 +43,15 @@ export default function SettingsScreen({
 
         <div className="settings-content-panel">
           <div className="settings-content-scroll">
+            {activeSection === 'projects' && (
+              <ProjectsSection
+                priorImportAvailable={priorImportAvailable}
+                priorSettingsDetected={priorSettingsDetected}
+                priorImportPending={priorImportPending}
+                priorImportError={priorImportError}
+                onImportPriorProjects={onImportPriorProjects}
+              />
+            )}
             {activeSection === 'sound-pack' && <SoundPackSection />}
             {activeSection === 'theme' && <ThemeSection />}
             {activeSection === 'billing' && (

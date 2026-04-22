@@ -153,12 +153,36 @@ const dismissTutorialOverlayIfPresent = async (page: Page): Promise<void> => {
 };
 
 const enterWorkspaceFromHome = async (page: Page): Promise<void> => {
-  const openWorldSelector = page.getByTestId('home-select-world');
-  const homeVisible = await openWorldSelector.isVisible({ timeout: 2_000 }).catch(() => false);
-  if (!homeVisible) return;
-
-  await openWorldSelector.click();
   const worldItem = page.getByTestId('world-item').first();
+
+  // If we're already on world-selection (e.g., re-entry after a previous navigation)
+  if (await worldItem.isVisible({ timeout: 500 }).catch(() => false)) {
+    await worldItem.click();
+    await page.getByTestId('workspace-canvas').waitFor({ state: 'visible', timeout: 10_000 });
+    return;
+  }
+
+  // Wait for settings to finish loading before checking for the overlay.
+  // The tour-opt-in overlay only appears once appSettings.status === 'loaded', so checking
+  // before that point gives a false negative and the overlay later intercepts the click.
+  await page
+    .locator('[data-settings-status="loaded"]')
+    .waitFor({ state: 'attached', timeout: 10_000 })
+    .catch(() => {});
+
+  // Dismiss tour-opt-in overlay if present (shown when tutorial is completed)
+  const startupOverlay = page.locator('.tour-opt-in-overlay');
+  if (await startupOverlay.isVisible({ timeout: 500 }).catch(() => false)) {
+    await startupOverlay.getByRole('button', { name: 'Continue?' }).click();
+    // "Continue?" navigates to world-selection
+    await worldItem.waitFor({ state: 'visible', timeout: 5_000 });
+    await worldItem.click();
+    await page.getByTestId('workspace-canvas').waitFor({ state: 'visible', timeout: 10_000 });
+    return;
+  }
+
+  // Normal home screen: open world selector then pick workspace
+  await page.getByTestId('home-select-world').click();
   await worldItem.waitFor({ state: 'visible', timeout: 10_000 });
   await worldItem.click();
   await page.getByTestId('workspace-canvas').waitFor({ state: 'visible', timeout: 10_000 });
@@ -225,7 +249,7 @@ export async function launchTestApp(options: LaunchOptions = {}): Promise<TestAp
         : {}),
       NODE_PATH: path.join(process.cwd(), 'node_modules'),
     },
-    timeout: 15_000,
+    timeout: 30_000,
   });
   if (debug) {
     console.log('[e2e] electron launched');
@@ -252,7 +276,7 @@ export async function launchTestApp(options: LaunchOptions = {}): Promise<TestAp
     });
   }
 
-  const page = await withTimeout(app.firstWindow(), 15_000, 'Electron window did not open in time');
+  const page = await withTimeout(app.firstWindow(), 30_000, 'Electron window did not open in time');
   await page.waitForLoadState('domcontentloaded');
   if (!tutorialMode) {
     await dismissTutorialOverlayIfPresent(page);

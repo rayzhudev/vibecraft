@@ -7,6 +7,12 @@ interface SettingsSidebarProps {
 
 const SidebarIcon = ({ icon }: { icon: string }) => {
   switch (icon) {
+    case 'folder':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+        </svg>
+      );
     case 'sound':
       return (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -39,6 +45,7 @@ const SidebarIcon = ({ icon }: { icon: string }) => {
 
 export default function SettingsSidebar({ activeSection, onSelectSection }: SettingsSidebarProps) {
   const categories = [
+    { key: 'workspace' as const, label: 'Workspace' },
     { key: 'customization' as const, label: 'Customization' },
     { key: 'account' as const, label: 'Account' },
   ];

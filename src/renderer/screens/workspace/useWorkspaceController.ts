@@ -4,6 +4,7 @@ import type {
   Agent,
   AgentProvider,
   Folder,
+  AnyFolder,
   TerminalPanel as TerminalPanelRecord,
   Hero,
   TutorialState,
@@ -13,18 +14,14 @@ import type {
   WorldEntity,
   Position,
 } from '../../../shared/types';
+import { useProjectMode, type ProjectModeReturn } from './useProjectMode';
 import { workspaceClient } from '../../services/workspaceClient';
 import useWorkspaceEntities from '../../hooks/useWorkspaceEntities';
 import useWorktreeConflicts from '../../hooks/useWorktreeConflicts';
 import useAgentTerminalManager from '../../hooks/useAgentTerminalManager';
 import type { DialogMessage, FolderSelectDialogState, InputConfig } from './types';
 import type { FolderContext } from '../../components/hud/abilityBuilder';
-import type {
-  CommandContext,
-  CommandHandlers,
-  CommandInvocation,
-  CommandRunResult,
-} from '../../commands/registry';
+import type { CommandContext, CommandInvocation, CommandRunResult } from '../../commands/registry';
 import { useDialogs } from './useDialogs';
 import { useBrowserManager } from './useBrowserManager';
 import { useAgentManager } from './useAgentManager';
@@ -147,8 +144,12 @@ export interface WorkspaceController {
   handleSetHeroProvider: (provider: AgentProvider) => Promise<CommandRunResult>;
   handleSetHeroModel: (model: string) => Promise<CommandRunResult>;
   advanceHeroIntro: () => void;
+  advanceFocusDemoStep: () => void;
+  completeFocusDemo: () => void;
+  skipTutorial: () => void;
   runCommand: (command: CommandInvocation) => Promise<CommandRunResult>;
   globalChatProps: GlobalChatProps;
+  projectMode: ProjectModeReturn;
 }
 
 const okResult = (): CommandRunResult => ({ ok: true });
@@ -195,6 +196,7 @@ export function useWorkspaceController({
   const [selectedEntityRef, setSelectedEntityRef] = useState<SelectedEntityRef | null>(null);
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const lastTabAgentRef = useRef<string | null>(null);
+  const tutorialStateRef = useRef<TutorialState | undefined>(undefined);
   const { registerHotkeyHandler } = useHotkeyRouter();
   const selectedAgentIdSet = useMemo(() => new Set(selectedAgentIds), [selectedAgentIds]);
   const selectedAgents = useMemo(
@@ -349,6 +351,26 @@ export function useWorkspaceController({
     detachAgent,
   });
 
+  const [tutorialStateSnapshot, setTutorialStateSnapshot] = useState<TutorialState | undefined>(undefined);
+
+  const projectMode = useProjectMode({
+    workspacePath: workspace.path,
+    folders: folders as AnyFolder[],
+    agents,
+    terminals,
+    browsers,
+    activeAgentTerminalId,
+    tutorialState: tutorialStateSnapshot,
+  });
+
+  const layoutFoldersForMagnetism = useMemo(() => {
+    if (!projectMode.layoutActive && !projectMode.focusModeActive) return folders;
+    return folders.map((f) => {
+      const p = projectMode.positionOverrides.get(f.id);
+      return p ? { ...f, x: p.x, y: p.y } : f;
+    });
+  }, [folders, projectMode.focusModeActive, projectMode.layoutActive, projectMode.positionOverrides]);
+
   const rosterAgentIds = useMemo(() => agents.map((agent) => agent.id), [agents]);
 
   const {
@@ -359,7 +381,12 @@ export function useWorkspaceController({
     magnetizedFolderIds,
   } = useAgentMagnetism({
     agents,
-    folders,
+    folders: layoutFoldersForMagnetism,
+    positionOverrides:
+      projectMode.layoutActive || projectMode.focusModeActive ? projectMode.positionOverrides : undefined,
+    projectZones: projectMode.projectZones,
+    layoutActive: projectMode.layoutActive,
+    focusModeActive: projectMode.focusModeActive,
     setAgents,
     persistAgentPosition,
     attachAgentToFolder,
@@ -415,6 +442,9 @@ export function useWorkspaceController({
     dismissedTutorialOverlayStepId,
     dismissTutorialCompletion,
     advanceHeroIntro,
+    advanceFocusDemoStep,
+    completeFocusDemo,
+    skipTutorial,
     updateTutorial,
     ensureTutorialServer,
     tutorialPromptRunId,
@@ -450,6 +480,10 @@ export function useWorkspaceController({
     handleAgentDragEnd: handleAgentDragEndWithTutorial,
     handleTutorialBrowserMessage,
   } = tutorialCore;
+
+  useEffect(() => {
+    setTutorialStateSnapshot(tutorialState);
+  }, [tutorialState]);
 
   const {
     selectedEntity,
@@ -616,18 +650,26 @@ export function useWorkspaceController({
   );
 
   const handleAgentCommandMove = useCallback(
-    (id: string, x: number, y: number) => {
+    async (id: string, x: number, y: number): Promise<CommandRunResult> => {
       if (!canMoveUnits) return okResult();
-      return handleAgentMovePersisted(id, x, y);
+      const result = await handleAgentMovePersisted(id, x, y);
+      if (result.ok && (projectMode.layoutActive || projectMode.focusModeActive)) {
+        projectMode.applyLayoutOverride(id, { x, y });
+      }
+      return result;
     },
-    [canMoveUnits, handleAgentMovePersisted]
+    [canMoveUnits, handleAgentMovePersisted, projectMode]
   );
 
   const handleFolderMoveWithTutorial = useCallback(
     async (id: string, x: number, y: number) => {
-      return handleFolderMove(id, x, y);
+      const result = await handleFolderMove(id, x, y);
+      if (result.ok && (projectMode.layoutActive || projectMode.focusModeActive)) {
+        projectMode.applyLayoutOverride(id, { x, y });
+      }
+      return result;
     },
-    [handleFolderMove]
+    [handleFolderMove, projectMode]
   );
 
   const handleFolderDragEndWithTutorial = useCallback(
@@ -637,8 +679,19 @@ export function useWorkspaceController({
     [handleFolderDragEnd]
   );
 
-  const createTerminal = async (originRelativePath: string, x: number, y: number) => {
-    const result = await workspaceClient.createTerminal(workspace.path, originRelativePath, x, y);
+  const createTerminal = async (
+    originRelativePath: string,
+    x: number,
+    y: number,
+    originFolderId?: string
+  ) => {
+    const result = await workspaceClient.createTerminal(
+      workspace.path,
+      originRelativePath,
+      x,
+      y,
+      originFolderId
+    );
     if (!result.success || !result.terminal) {
       const errorMessage = result.error || 'Failed to create terminal';
       setMessageDialog({
@@ -886,52 +939,140 @@ export function useWorkspaceController({
     folderContext,
   };
 
-  const commandHandlers: CommandHandlers = {
-    createAgent,
-    createFolder: createFolderWithTutorial,
-    createBrowser,
-    createTerminal,
-    openAgentTerminal,
-    refreshBrowser: handleBrowserRefresh,
-    clearAgentTerminalState,
-    attachAgentToFolder,
-    detachAgent,
-    closeBrowser: handleBrowserClose,
-    closeTerminal: closeTerminalById,
-    removeFolder,
-    deleteFolder,
-    renameFolder,
-    createWorktree,
-    worktreeSync,
-    worktreeMerge,
-    undoMerge,
-    retryRestore,
-    destroyAgent,
-    moveAgent: handleAgentCommandMove,
-    moveFolder: handleFolderMoveWithTutorial,
-    moveBrowser: handleBrowserMoveWithTutorial,
-    moveTerminal: handleTerminalMoveWithTutorial,
-    resizeBrowser: handleBrowserResizeWithTutorial,
-    resizeTerminal: handleTerminalResizeWithTutorial,
-    moveHero: handleHeroMoveWithTutorial,
-    setAgentModel: handleSetAgentModel,
-    setAgentReasoningEffort: handleSetAgentReasoningEffort,
-    providerStatus: handleProviderStatus,
-    providerInstall: handleProviderInstall,
-    providersBootstrap: handleProvidersBootstrap,
-    providersRefresh: handleProvidersRefresh,
-    setHeroProvider: handleSetHeroProvider,
-    setHeroModel: handleSetHeroModel,
-    agentSendPrompt: handleAgentSendPrompt,
-    heroSendPrompt: handleHeroSendPrompt,
-    cancelAgentRun: handleCancelAgentRun,
-    cancelHeroRun: handleCancelHeroRun,
-  };
+  const applyLayoutOverride = useCallback(
+    (id: string, override: { x?: number; y?: number; width?: number; height?: number }) => {
+      if (projectMode.layoutActive || projectMode.focusModeActive) {
+        projectMode.applyLayoutOverride(id, override);
+      }
+    },
+    [projectMode]
+  );
+
+  const applySizeOnly = useCallback(
+    (id: string, width: number, height: number) => {
+      if (projectMode.layoutActive || projectMode.focusModeActive) {
+        projectMode.applyLayoutOverride(id, { width, height });
+      }
+    },
+    [projectMode]
+  );
+
+  const handleBrowserMoveWithLayout = useCallback(
+    async (id: string, x: number, y: number) => {
+      const result = await handleBrowserMoveWithTutorial(id, x, y);
+      if (result.ok) applyLayoutOverride(id, { x, y });
+      return result;
+    },
+    [applyLayoutOverride, handleBrowserMoveWithTutorial]
+  );
+
+  const handleBrowserResizeWithLayout = useCallback(
+    async (id: string, width: number, height: number) => {
+      const result = await handleBrowserResizeWithTutorial(id, width, height);
+      if (result.ok) applySizeOnly(id, width, height);
+      return result;
+    },
+    [applySizeOnly, handleBrowserResizeWithTutorial]
+  );
+
+  const handleBrowserMoveEndWithLayout = useCallback(
+    async (id: string, x: number, y: number) => {
+      const result = await handleBrowserMoveEndWithTutorial(id, x, y);
+      if (result.ok) applyLayoutOverride(id, { x, y });
+      return result;
+    },
+    [applyLayoutOverride, handleBrowserMoveEndWithTutorial]
+  );
+
+  const handleBrowserResizeEndWithLayout = useCallback(
+    async (id: string, width: number, height: number) => {
+      const result = await handleBrowserResizeEndWithTutorial(id, width, height);
+      if (result.ok) applySizeOnly(id, width, height);
+      return result;
+    },
+    [applySizeOnly, handleBrowserResizeEndWithTutorial]
+  );
+
+  const handleTerminalMoveWithLayout = useCallback(
+    async (id: string, x: number, y: number) => {
+      const result = await handleTerminalMoveWithTutorial(id, x, y);
+      if (result.ok) applyLayoutOverride(id, { x, y });
+      return result;
+    },
+    [applyLayoutOverride, handleTerminalMoveWithTutorial]
+  );
+
+  const handleTerminalResizeWithLayout = useCallback(
+    async (id: string, width: number, height: number) => {
+      const result = await handleTerminalResizeWithTutorial(id, width, height);
+      if (result.ok) applySizeOnly(id, width, height);
+      return result;
+    },
+    [applySizeOnly, handleTerminalResizeWithTutorial]
+  );
+
+  const handleTerminalMoveEndWithLayout = useCallback(
+    async (id: string, x: number, y: number) => {
+      const result = await handleTerminalMoveEndWithTutorial(id, x, y);
+      if (result.ok) applyLayoutOverride(id, { x, y });
+      return result;
+    },
+    [applyLayoutOverride, handleTerminalMoveEndWithTutorial]
+  );
+
+  const handleTerminalResizeEndWithLayout = useCallback(
+    async (id: string, width: number, height: number) => {
+      const result = await handleTerminalResizeEndWithTutorial(id, width, height);
+      if (result.ok) applySizeOnly(id, width, height);
+      return result;
+    },
+    [applySizeOnly, handleTerminalResizeEndWithTutorial]
+  );
 
   const { runCommandWithContext } = useWorkspaceCommandBridge({
     workspacePath: workspace.path,
     context: commandContext,
-    handlers: commandHandlers,
+    handlers: {
+      createAgent,
+      createFolder: createFolderWithTutorial,
+      createBrowser,
+      createTerminal,
+      openAgentTerminal,
+      refreshBrowser: handleBrowserRefresh,
+      clearAgentTerminalState,
+      attachAgentToFolder,
+      detachAgent,
+      closeBrowser: handleBrowserClose,
+      closeTerminal: closeTerminalById,
+      removeFolder,
+      deleteFolder,
+      renameFolder,
+      createWorktree,
+      worktreeSync,
+      worktreeMerge,
+      undoMerge,
+      retryRestore,
+      destroyAgent,
+      moveAgent: handleAgentCommandMove,
+      moveFolder: handleFolderMoveWithTutorial,
+      moveBrowser: handleBrowserMoveWithLayout,
+      moveTerminal: handleTerminalMoveWithLayout,
+      resizeBrowser: handleBrowserResizeWithLayout,
+      resizeTerminal: handleTerminalResizeWithLayout,
+      moveHero: handleHeroMoveWithTutorial,
+      setAgentModel: handleSetAgentModel,
+      setAgentReasoningEffort: handleSetAgentReasoningEffort,
+      providerStatus: handleProviderStatus,
+      providerInstall: handleProviderInstall,
+      providersBootstrap: handleProvidersBootstrap,
+      providersRefresh: handleProvidersRefresh,
+      setHeroProvider: handleSetHeroProvider,
+      setHeroModel: handleSetHeroModel,
+      agentSendPrompt: handleAgentSendPrompt,
+      heroSendPrompt: handleHeroSendPrompt,
+      cancelAgentRun: handleCancelAgentRun,
+      cancelHeroRun: handleCancelHeroRun,
+    },
   });
 
   const { handleAbility } = useWorkspaceAbilities({
@@ -941,10 +1082,15 @@ export function useWorkspaceController({
     hero,
     agents,
     folders,
+    focusedProjectIds: projectMode.focusedProjectIds,
     runCommandWithContext,
     beginRename: () => beginRenameWithTutorial(),
     tutorialState,
   });
+
+  useEffect(() => {
+    tutorialStateRef.current = tutorialState;
+  }, [tutorialState]);
 
   const heroNameForChat = (renderHero ?? hero).name;
   const tutorialPromptStep = getTutorialPromptStep(tutorialState);
@@ -1119,10 +1265,10 @@ export function useWorkspaceController({
     handleAgentDragEnd: handleAgentDragEndWithSelection,
     handleFolderMove: handleFolderMoveWithTutorial,
     handleFolderDragEnd: handleFolderDragEndWithTutorial,
-    handleBrowserMove: handleBrowserMoveWithTutorial,
-    handleBrowserMoveEnd: handleBrowserMoveEndWithTutorial,
-    handleBrowserResize: handleBrowserResizeWithTutorial,
-    handleBrowserResizeEnd: handleBrowserResizeEndWithTutorial,
+    handleBrowserMove: handleBrowserMoveWithLayout,
+    handleBrowserMoveEnd: handleBrowserMoveEndWithLayout,
+    handleBrowserResize: handleBrowserResizeWithLayout,
+    handleBrowserResizeEnd: handleBrowserResizeEndWithLayout,
     handleBrowserUrlChange: handleBrowserUrlChangeWithTutorial,
     handleBrowserFaviconChange,
     handleBrowserClose: handleBrowserCloseWithTutorial,
@@ -1138,10 +1284,10 @@ export function useWorkspaceController({
     handleRenamePickOption: handleRenamePickOptionWithTutorial,
     closeTerminalById,
     updateTerminalRecord,
-    handleTerminalMove: handleTerminalMoveWithTutorial,
-    handleTerminalMoveEnd: handleTerminalMoveEndWithTutorial,
-    handleTerminalResize: handleTerminalResizeWithTutorial,
-    handleTerminalResizeEnd: handleTerminalResizeEndWithTutorial,
+    handleTerminalMove: handleTerminalMoveWithLayout,
+    handleTerminalMoveEnd: handleTerminalMoveEndWithLayout,
+    handleTerminalResize: handleTerminalResizeWithLayout,
+    handleTerminalResizeEnd: handleTerminalResizeEndWithLayout,
     bringTerminalToFront,
     handleTerminalProcessChange,
     closeActiveAgentTerminal,
@@ -1154,7 +1300,11 @@ export function useWorkspaceController({
     handleSetHeroProvider,
     handleSetHeroModel,
     advanceHeroIntro,
+    advanceFocusDemoStep,
+    completeFocusDemo,
+    skipTutorial,
     runCommand: runCommandWithContext,
     globalChatProps: tutorialChatProps,
+    projectMode,
   };
 }

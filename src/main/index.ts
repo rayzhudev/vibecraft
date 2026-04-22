@@ -1,5 +1,5 @@
 import './fsTrace';
-import { app, BrowserWindow, screen, systemPreferences } from 'electron';
+import { app, BrowserWindow, dialog, screen, systemPreferences } from 'electron';
 import * as fs from 'fs';
 import { join, resolve } from 'path';
 import { execFileSync } from 'child_process';
@@ -10,7 +10,7 @@ import { processManager } from './services/agents/processManager';
 import { stopWorkspaceMcpServer } from './mcp/server';
 import { getStorageNamespace } from './services/storageNamespace';
 import { scheduleStartupBackgroundTasks } from './startupTasks';
-import { ensureDir, getTestModeConfig } from '../testing/testMode';
+import { ensureDir, getTestModeConfig, isTestMode } from '../testing/testMode';
 import { safeWebContentsSend } from './ipc/safeSend';
 import { parseCheckoutSessionId } from './services/licenseClient';
 import { getLicenseClient } from './services/licenseRuntime';
@@ -23,8 +23,44 @@ import {
 } from './rendererLifecycle';
 import { loadRuntimeEnv } from '../shared/runtimeEnv';
 import { APP_VERSION } from './services/appVersion';
+import { getMacOSTahoeElectron41WorkaroundEnabled } from './services/macosCompat';
 
 const log = logger.scope('main');
+const macOSTahoeElectron41WorkaroundEnabled = getMacOSTahoeElectron41WorkaroundEnabled();
+
+if (macOSTahoeElectron41WorkaroundEnabled) {
+  // Catch unhandled exceptions before Electron can show a native NSAlert dialog.
+  // On macOS 26 + Electron 41 any NSAlert triggers a V8 crash via Accessibility,
+  // so we must prevent the default Electron crash dialog entirely.
+  process.on('uncaughtException', (error) => {
+    try {
+      log.error('Uncaught exception — exiting', error);
+    } catch {
+      console.error('Uncaught exception — exiting', error);
+    }
+    if (!isTestMode()) {
+      process.nextTick(() => app.exit(1));
+    }
+  });
+  process.on('unhandledRejection', (reason) => {
+    try {
+      log.error('Unhandled rejection', reason);
+    } catch {
+      console.error('Unhandled rejection', reason);
+    }
+  });
+
+  dialog.showErrorBox = (title: string, content: string) => {
+    try {
+      log.error('Suppressed error dialog (macOS 26 compat)', { title, content });
+    } catch {
+      console.error('Suppressed error dialog', title, content);
+    }
+    if (!isTestMode()) {
+      process.nextTick(() => app.exit(1));
+    }
+  };
+}
 
 loadRuntimeEnv();
 
@@ -259,7 +295,17 @@ async function createWindow(): Promise<void> {
     flushQueuedRendererEvents();
   });
 
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    log.error('Renderer process crashed', details);
+    // Don't let Electron show a native crash dialog — it crashes on macOS 26.
+  });
+
+  mainWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
+    log.error('Preload script error', { preloadPath, error: error?.message });
+  });
+
   mainWindow.once('ready-to-show', () => {
+    log.info('ready-to-show fired', { isDev, isTestModeEnabled });
     if (!mainWindow) return;
     if (isTestModeEnabled) {
       if (testMode.showWindow) {
@@ -336,6 +382,14 @@ app.on('ready', () => {
       systemPreferences.setUserDefault('ApplePressAndHoldEnabled', 'boolean', false);
     } catch {
       /* noop */
+    }
+    if (macOSTahoeElectron41WorkaroundEnabled) {
+      try {
+        app.setAccessibilitySupportEnabled(false);
+        log.info('Accessibility support disabled (macOS 26 compat)');
+      } catch {
+        /* noop */
+      }
     }
   }
   registerProtocolClient();

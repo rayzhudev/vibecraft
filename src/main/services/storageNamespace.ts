@@ -1,13 +1,19 @@
+import pkg from '../../../package.json';
+
 export type StorageNamespace = 'dev' | 'prod';
 
 const PROD_WORKSPACE_DIR = '.vibecraft';
 const DEV_WORKSPACE_DIR = '.vibecraft-dev';
 
 export const resolveStorageNamespace = (): StorageNamespace => {
-  const raw = process.env.VIBECRAFT_STORAGE_NAMESPACE;
-  if (raw === 'dev' || raw === 'prod') {
-    return raw;
+  const fromEnv = process.env.VIBECRAFT_STORAGE_NAMESPACE;
+  if (fromEnv === 'dev' || fromEnv === 'prod') {
+    return fromEnv;
   }
+
+  const fromPackage = (pkg as { vibecraftStorageNamespace?: unknown }).vibecraftStorageNamespace;
+  if (fromPackage === 'dev' || fromPackage === 'prod') return fromPackage;
+
   return 'prod';
 };
 

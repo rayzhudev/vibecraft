@@ -12,7 +12,8 @@ export function createBrowserPanel(
   x: number,
   y: number,
   width = DEFAULT_BROWSER_SIZE.width,
-  height = DEFAULT_BROWSER_SIZE.height
+  height = DEFAULT_BROWSER_SIZE.height,
+  originFolderId?: string
 ): BrowserPanel {
   const panel: BrowserPanel = {
     id: `browser-${Date.now()}`,
@@ -22,6 +23,7 @@ export function createBrowserPanel(
     width,
     height,
     createdAt: Date.now(),
+    originFolderId,
   };
 
   const panels = storage.loadBrowserPanels(workspacePath);

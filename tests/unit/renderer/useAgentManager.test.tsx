@@ -81,7 +81,9 @@ function CreateHarness({
   onReady,
 }: {
   initialAgents: Agent[];
-  onReady: (create: (provider: AgentProvider, x: number, y: number) => Promise<void>) => void;
+  onReady: (
+    create: (provider: AgentProvider, x: number, y: number, attachedFolderId?: string) => Promise<void>
+  ) => void;
 }) {
   const [agents, setAgents] = useState<Agent[]>(initialAgents);
   const [activeAgentTerminalId, setActiveAgentTerminalId] = useState<string | null>(null);
@@ -109,8 +111,8 @@ function CreateHarness({
   });
 
   useEffect(() => {
-    onReady(async (provider, x, y) => {
-      await createAgent(provider, x, y);
+    onReady(async (provider, x, y, attachedFolderId) => {
+      await createAgent(provider, x, y, attachedFolderId);
     });
   }, [createAgent, onReady]);
 
@@ -355,6 +357,55 @@ test('createAgent skips existing names when sequence collides', async () => {
   } finally {
     window.electronAPI.loadSettings = originalLoadSettings;
     window.electronAPI.saveSettings = originalSaveSettings;
+    window.electronAPI.spawnAgent = originalSpawnAgent;
+  }
+});
+
+test('createAgent forwards attached folder ownership to spawn payload', async () => {
+  const originalSpawnAgent = window.electronAPI.spawnAgent;
+
+  try {
+    const spawnAgent = vi.fn(async (payload) => ({
+      success: true,
+      agent: {
+        id: 'agent-owned',
+        provider: payload.provider,
+        model: payload.model ?? '',
+        color: payload.color,
+        name: payload.name,
+        displayName: payload.displayName,
+        workspacePath: payload.workspacePath,
+        x: payload.x,
+        y: payload.y,
+        status: 'online' as const,
+        attachedFolderId: payload.attachedFolderId,
+        contextLeft: 100,
+      },
+    }));
+    window.electronAPI.spawnAgent = spawnAgent;
+
+    let createAgent: (
+      provider: AgentProvider,
+      x: number,
+      y: number,
+      attachedFolderId?: string
+    ) => Promise<void> = async () => {};
+
+    render(<CreateHarness initialAgents={[]} onReady={(create) => (createAgent = create)} />);
+
+    await act(async () => {
+      await createAgent('claude', 50, 60, 'folder-123');
+    });
+
+    expect(spawnAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'claude',
+        x: 50,
+        y: 60,
+        attachedFolderId: 'folder-123',
+      })
+    );
+  } finally {
     window.electronAPI.spawnAgent = originalSpawnAgent;
   }
 });

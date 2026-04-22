@@ -28,6 +28,7 @@ const parseInterval = (value: string | undefined): number | null => {
 };
 
 const shouldEnableUpdates = (updateUrl: string | null): boolean => {
+  if ((process.env.VIBECRAFT_DISABLE_UPDATES ?? '').trim() === '1') return false;
   if (updateUrl) return true;
   return hasUpdateConfig();
 };

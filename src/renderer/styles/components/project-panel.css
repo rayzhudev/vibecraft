@@ -1,0 +1,651 @@
+/* ── HUD Top-Left: unified Projects + Agents bar ─────────────────── */
+.hud-top-left {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 210;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+  max-height: calc(100vh - 120px);
+}
+
+.hud-button-bar {
+  display: flex;
+  gap: 4px;
+  pointer-events: auto;
+  flex-shrink: 0;
+  overflow-x: auto;
+  max-width: min(340px, 50vw);
+  padding-bottom: 2px;
+}
+
+.hud-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 14, 20, 0.85);
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+  flex-shrink: 0;
+}
+
+.hud-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: rgba(255, 255, 255, 0.85);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.hud-tab-btn--active {
+  background: rgba(99, 179, 237, 0.15);
+  color: #63b3ed;
+  border-color: rgba(99, 179, 237, 0.45);
+  box-shadow: 0 0 8px rgba(99, 179, 237, 0.2);
+}
+
+.hud-tab-btn--active:hover {
+  background: rgba(99, 179, 237, 0.22);
+}
+
+.hud-tab-icon {
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+/* Container that holds all open panels below the button bar */
+.hud-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+.hud-panels::-webkit-scrollbar {
+  width: 3px;
+}
+.hud-panels::-webkit-scrollbar-track {
+  background: transparent;
+}
+.hud-panels::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+/* ── Slide-in panel (now in-flow inside hud-panels) ───────────────── */
+.pp-panel {
+  width: min(260px, 48vw);
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 12, 18, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+  pointer-events: auto;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  animation: pp-slide-in 0.15s ease-out;
+  max-height: 60vh;
+  flex-shrink: 0;
+}
+
+@keyframes pp-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Panel header ─────────────────────────────────────────────────── */
+.pp-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 7px 8px 7px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+}
+
+.pp-header-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+  flex: 1;
+}
+
+.pp-header-actions {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex: 0 1 70%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.pp-header-actions::-webkit-scrollbar {
+  height: 4px;
+}
+.pp-header-actions::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+}
+
+.pp-header-btn {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition:
+    background 0.1s,
+    color 0.1s;
+}
+
+.pp-header-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.pp-header-btn--active {
+  background: rgba(99, 179, 237, 0.15);
+  color: #63b3ed;
+  border-color: rgba(99, 179, 237, 0.3);
+}
+
+.pp-header-btn--close {
+  font-size: 0.6rem;
+  padding: 2px 5px;
+  color: rgba(255, 80, 80, 0.5);
+  border-color: rgba(255, 80, 80, 0.15);
+}
+
+.pp-header-btn--close:hover {
+  background: rgba(255, 80, 80, 0.1);
+  color: rgba(255, 100, 100, 0.9);
+}
+
+/* ── Project list ─────────────────────────────────────────────────── */
+.pp-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px 0;
+}
+
+.pp-list::-webkit-scrollbar {
+  width: 3px;
+}
+.pp-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.pp-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+}
+
+.pp-empty {
+  padding: 12px 10px;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.3);
+  text-align: center;
+}
+
+/* ── Project row ──────────────────────────────────────────────────── */
+.pp-project {
+  position: relative;
+}
+
+.pp-project::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background 0.2s;
+  border-radius: 0 1px 1px 0;
+}
+
+.pp-project--visible::before {
+  background: var(--project-color, #63b3ed);
+}
+
+.pp-project-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px 5px 10px;
+  cursor: default;
+}
+
+.pp-project-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Color dropper button */
+.pp-color-btn {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+
+.pp-color-btn:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+.pp-color-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Visibility checkbox */
+.pp-check {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1.5px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  position: relative;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    box-shadow 0.15s;
+}
+
+.pp-check--on {
+  border-color: var(--project-color, #63b3ed);
+  background: var(--project-color, #63b3ed);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--project-color, #63b3ed) 60%, transparent);
+}
+
+.pp-check--on::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  background: rgba(10, 12, 18, 0.6);
+  border-radius: 1px;
+}
+
+/* Project name */
+.pp-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s;
+}
+
+.pp-name:hover {
+  color: #fff;
+}
+
+.pp-project--visible .pp-name {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Count badge */
+.pp-count {
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+  min-width: 14px;
+  text-align: right;
+}
+
+/* Expand button */
+.pp-expand {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.1s;
+}
+
+.pp-expand:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ── Entity list ──────────────────────────────────────────────────── */
+.pp-entity-list {
+  padding: 0 0 4px 28px;
+}
+
+.pp-entity {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 3px 8px 3px 4px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.pp-entity:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.pp-entity-icon {
+  font-size: 0.7rem;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.pp-entity-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pp-entity:hover .pp-entity-name {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.pp-entity-jump {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.2);
+  opacity: 0;
+  transition: opacity 0.1s;
+  flex-shrink: 0;
+}
+
+.pp-entity:hover .pp-entity-jump {
+  opacity: 1;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Global browsers footer ───────────────────────────────────────── */
+.pp-global-browsers {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px 5px 28px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: 2px;
+}
+
+.pp-global-browsers .pp-entity-name {
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* ── Agent roster when embedded in HUD ───────────────────────────── */
+.hud-agent-panel {
+  width: 272px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 12, 18, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+  pointer-events: auto;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  animation: pp-slide-in 0.15s ease-out;
+  max-height: 55vh;
+  flex-shrink: 0;
+}
+
+/* ── Focus mode header hint ──────────────────────────────────────── */
+.pp-focus-hint {
+  font-size: 0.62rem;
+  color: rgba(99, 179, 237, 0.6);
+  padding: 4px 10px 6px;
+  border-bottom: 1px solid rgba(99, 179, 237, 0.08);
+  background: rgba(99, 179, 237, 0.04);
+  flex-shrink: 0;
+}
+
+/* ── Focused project row ─────────────────────────────────────────── */
+.pp-project--focused {
+  background: rgba(99, 179, 237, 0.04);
+}
+
+.pp-project--focused::before {
+  background: var(--project-color, #63b3ed);
+  width: 3px;
+}
+
+.pp-header-btn--exit-focus {
+  font-size: 0.62rem;
+  padding: 2px 7px;
+  color: #63b3ed;
+  border-color: rgba(99, 179, 237, 0.3);
+  background: rgba(99, 179, 237, 0.1);
+}
+
+.pp-header-btn--exit-focus:hover {
+  background: rgba(99, 179, 237, 0.2);
+  color: #90cdf4;
+}
+
+/* ── Canvas background color picker (top-right HUD) ─────────────── */
+.canvas-top-right-controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3400;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.canvas-perf-btn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(11, 16, 24, 0.78);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.canvas-perf-btn:hover {
+  background: rgba(20, 28, 42, 0.92);
+  border-color: rgba(255, 255, 255, 0.32);
+  color: #fff;
+}
+
+.canvas-perf-btn--active {
+  background: rgba(56, 142, 60, 0.22);
+  border-color: rgba(56, 142, 60, 0.55);
+  color: #c9f6cf;
+}
+
+.canvas-bg-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    transform 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+.canvas-bg-btn:hover {
+  transform: scale(1.18);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow:
+    0 0 8px rgba(255, 255, 255, 0.15),
+    0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+.canvas-bg-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* ── Canvas project zone backgrounds ─────────────────────────────── */
+.project-zone-bg {
+  position: absolute;
+  border-radius: 24px;
+  pointer-events: none;
+}
+
+/* ── Canvas entity glow (via dynamic <style> in WorkspaceCanvas) ──── */
+/* .project-glow-[id] rules are injected dynamically per project color */
+
+/* ── Tutorial import prompt overlay ─────────────────────────────────── */
+.tutorial-import-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 600;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.tutorial-import-card {
+  width: 400px;
+  background: rgba(10, 12, 18, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 28px 28px 24px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+  animation: pp-slide-in 0.2s ease-out;
+}
+
+.tutorial-import-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 10px;
+}
+
+.tutorial-import-body {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.55;
+  margin: 0 0 22px;
+}
+
+.tutorial-import-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.tutorial-import-btn {
+  padding: 8px 18px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.tutorial-import-btn--secondary {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.tutorial-import-btn--secondary:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.tutorial-import-btn--primary {
+  background: rgba(99, 179, 237, 0.15);
+  border-color: rgba(99, 179, 237, 0.4);
+  color: #63b3ed;
+}
+
+.tutorial-import-btn--primary:hover {
+  background: rgba(99, 179, 237, 0.25);
+  color: #90cdf4;
+}

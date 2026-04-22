@@ -8,6 +8,8 @@ export {
   DEFAULT_TUTORIAL_STATE,
   TUTORIAL_STEPS,
   TUTORIAL_STATUSES,
+  getTutorialProgress,
+  getTutorialStepLabel,
   isTutorialActive,
   isTutorialStep,
 } from '../../shared/tutorial';

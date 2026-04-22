@@ -30,7 +30,12 @@ export interface UseAgentManagerReturn {
   persistAgentPosition: (id: string, x: number, y: number) => Promise<CommandRunResult>;
   handleAgentMove: (id: string, x: number, y: number) => Promise<CommandRunResult>;
   resetAgentNameSequenceIndex: () => Promise<CommandRunResult>;
-  createAgent: (provider: AgentProvider, x: number, y: number) => Promise<CommandRunResult>;
+  createAgent: (
+    provider: AgentProvider,
+    x: number,
+    y: number,
+    attachedFolderId?: string
+  ) => Promise<CommandRunResult>;
   destroyAgent: (agentId: string) => Promise<CommandRunResult>;
   openAgentTerminal: (agentId: string) => Promise<CommandRunResult>;
   clearAgentTerminalState: (agentId: string) => Promise<CommandRunResult>;
@@ -385,7 +390,7 @@ export function useAgentManager({
     }
   }, [saveNameSequences]);
 
-  const createAgent = async (provider: AgentProvider, x: number, y: number) => {
+  const createAgent = async (provider: AgentProvider, x: number, y: number, attachedFolderId?: string) => {
     const usedNames = buildExistingNameSet(agents);
     let spawnCount = nameSequenceRef.current[provider] ?? 0;
     let displayName = getNextAgentName(provider, spawnCount, activeTheme);
@@ -405,6 +410,7 @@ export function useAgentManager({
       workspacePath,
       x,
       y,
+      attachedFolderId,
     });
     if (result.success && result.agent) {
       setAgents((prev) => {

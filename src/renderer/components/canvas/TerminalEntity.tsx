@@ -670,12 +670,9 @@ function TerminalEntity({
       e.preventDefault();
       onSelect?.();
       bringToFront();
-      if (lockedToLayout) {
-        return;
-      }
       startDrag(e);
     },
-    [bringToFront, lockedToLayout, onSelect, startDrag]
+    [bringToFront, onSelect, startDrag]
   );
 
   const handleTerminalClick = useCallback(
@@ -780,13 +777,11 @@ function TerminalEntity({
           <div className="terminal-dormant-placeholder">Terminal activates when nearby</div>
         )}
       </div>
-      {!lockedToLayout && (
-        <div
-          className="panel-resize-handle terminal-resize-handle"
-          onMouseDown={handleResizeStart}
-          title="Resize terminal"
-        />
-      )}
+      <div
+        className="panel-resize-handle terminal-resize-handle"
+        onMouseDown={handleResizeStart}
+        title="Resize terminal"
+      />
       {showSelectionShield && (
         <div className="windowed-selection-shield" data-testid="windowed-selection-shield" aria-hidden />
       )}

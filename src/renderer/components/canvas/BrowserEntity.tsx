@@ -47,7 +47,7 @@ function BrowserEntity({
   onRefreshHandled,
   onTutorialMessage,
   forcedBounds,
-  lockedToLayout = false,
+  lockedToLayout: _lockedToLayout = false,
 }: BrowserEntityProps) {
   const [minimized, setMinimized] = useState(false);
   const [urlInput, setUrlInput] = useState(panel.url);
@@ -85,13 +85,6 @@ function BrowserEntity({
 
   // Custom drag handler that also calls onSelect
   const startDrag = (e: React.MouseEvent) => {
-    if (lockedToLayout) {
-      e.preventDefault();
-      e.stopPropagation();
-      onSelect();
-      bringToFront();
-      return;
-    }
     if (e.button !== 0) return;
 
     const target = e.target as HTMLElement;
@@ -514,21 +507,19 @@ function BrowserEntity({
           )}
 
           {/* Resize handle */}
-          {!lockedToLayout && (
-            <div
-              onMouseDown={startResize}
-              title="Resize"
-              style={{
-                position: 'absolute',
-                bottom: 0,
-                right: 0,
-                width: 16,
-                height: 16,
-                cursor: 'se-resize',
-                background: 'linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.3) 50%)',
-              }}
-            />
-          )}
+          <div
+            onMouseDown={startResize}
+            title="Resize"
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              right: 0,
+              width: 16,
+              height: 16,
+              cursor: 'se-resize',
+              background: 'linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.3) 50%)',
+            }}
+          />
         </>
       )}
       {showSelectionShield && (

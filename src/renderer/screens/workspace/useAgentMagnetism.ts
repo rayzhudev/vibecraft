@@ -9,9 +9,6 @@ import {
 } from './attachLayout';
 
 // Keep in sync with workspace layout constants
-const FOLDER_SIZE = 80;
-const AGENT_SIZE = 48;
-
 type LayoutOverride = { x: number; y: number; width?: number; height?: number };
 
 type DragEndData = { pos: Position; dragDistance: number };
@@ -133,6 +130,12 @@ export function useAgentMagnetism({
       } else {
         pendingAttachRef.current.delete(agentId);
       }
+
+      if (window.electronAPI.isTestMode) {
+        console.log(
+          `[useAgentMagnetism] DragStart agentId=${agentId} currentAttachment=${agent?.attachedFolderId ?? 'none'}`
+        );
+      }
       clearMovementGroupIfComplete(agentId);
     },
     [clearMovementGroupIfComplete, clearPendingArrival]
@@ -144,7 +147,6 @@ export function useAgentMagnetism({
       const agent = agentsRef.current.find((entry) => entry.id === agentId);
       if (!agent) return;
 
-      const startAttachment = dragStartAttachmentRef.current.get(agentId);
       let currentAttachment = resolveDragAttachment(agentId, agent.attachedFolderId);
       const lastPos = dragLastPosByAgentRef.current.get(agentId);
       let finalPos = data?.pos ?? lastPos ?? { x: agent.x, y: agent.y };
@@ -173,25 +175,32 @@ export function useAgentMagnetism({
         );
         if (zoneHit) {
           currentAttachment = zoneHit.folderId;
-          const folder = foldersRef.current.find((f) => f.id === zoneHit.folderId);
-          finalPos = folder
-            ? {
-                x: folder.x + FOLDER_SIZE / 2 - AGENT_SIZE / 2,
-                y: folder.y + FOLDER_SIZE / 2 - AGENT_SIZE / 2,
-              }
-            : {
-                x: zoneHit.x + zoneHit.w / 2 - AGENT_SIZE / 2,
-                y: zoneHit.y + zoneHit.h / 2 - AGENT_SIZE / 2,
-              };
         }
       }
 
       if (currentAttachment) {
+        if (window.electronAPI.isTestMode) {
+          console.log(
+            `[useAgentMagnetism] DragEnd agentId=${agentId} ATTACHING to folderId=${currentAttachment}`
+          );
+        }
         void attachAgentToFolder(agentId, currentAttachment, finalPos);
       } else {
+        if (window.electronAPI.isTestMode) {
+          console.log(`[useAgentMagnetism] DragEnd agentId=${agentId} PERSISTING position (detached)`);
+        }
         void persistAgentPosition(agentId, finalPos.x, finalPos.y);
-        if (startAttachment) {
-          void detachAgent(agentId);
+
+        if (agent.attachedFolderId) {
+          const folder = foldersRef.current.find((f) => f.id === agent.attachedFolderId);
+          if (!folder || isOutsideGravity({ ...agent, x: finalPos.x, y: finalPos.y }, folder)) {
+            void detachAgent(agentId);
+            setAgents((prev) =>
+              prev.map((a) =>
+                a.id === agentId ? { ...a, attachedFolderId: undefined, status: 'offline' } : a
+              )
+            );
+          }
         }
       }
     },
@@ -204,6 +213,7 @@ export function useAgentMagnetism({
       persistAgentPosition,
       projectZones,
       resolveDragAttachment,
+      setAgents,
     ]
   );
 
@@ -310,6 +320,9 @@ export function useAgentMagnetism({
       const lockedAngle = lockedAngleByAgentRef.current.get(id)!;
       const snapPos = getSnapPosition(nearestFolder, lockedAngle);
 
+      if (window.electronAPI.isTestMode) {
+        console.log(`[useAgentMagnetism] SnapLock agentId=${id} onto folderId=${nearestFolder.id}`);
+      }
       pendingAttachRef.current.set(id, nearestFolder.id);
       setPatch({ x: snapPos.x, y: snapPos.y, attachedFolderId: nearestFolder.id, status: 'online' });
 
@@ -360,25 +373,6 @@ export function useAgentMagnetism({
     },
     [applyAgentPatches, computeAgentMovePatch]
   );
-
-  useEffect(() => {
-    const detachIds: string[] = [];
-    agents.forEach((agent) => {
-      if (!agent.attachedFolderId) return;
-      const folder = folders.find((entry) => entry.id === agent.attachedFolderId);
-      if (!folder) return;
-      if (isOutsideGravity(agent, folder)) {
-        detachIds.push(agent.id);
-      }
-    });
-    if (detachIds.length === 0) return;
-    setAgents((prev) =>
-      prev.map((agent) => (detachIds.includes(agent.id) ? { ...agent, attachedFolderId: undefined } : agent))
-    );
-    detachIds.forEach((agentId) => {
-      void detachAgent(agentId);
-    });
-  }, [agents, detachAgent, folders, setAgents]);
 
   return {
     handleAgentMove,

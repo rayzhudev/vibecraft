@@ -1313,9 +1313,26 @@ export function updateFolderPosition(workspacePath: string, folderId: string, x:
   const folder = folders.find((f) => f.id === folderId);
 
   if (folder) {
+    const dx = x - folder.x;
+    const dy = y - folder.y;
     folder.x = x;
     folder.y = y;
     storage.saveFolders(workspacePath, folders);
+
+    if (dx !== 0 || dy !== 0) {
+      const agents = storage.loadAgents(workspacePath);
+      let agentsChanged = false;
+      const updatedAgents = agents.map((a) => {
+        if (a.attachedFolderId === folderId) {
+          agentsChanged = true;
+          return { ...a, x: a.x + dx, y: a.y + dy };
+        }
+        return a;
+      });
+      if (agentsChanged) {
+        storage.saveAgents(workspacePath, updatedAgents);
+      }
+    }
   }
 }
 

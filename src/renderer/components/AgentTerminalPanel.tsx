@@ -153,7 +153,12 @@ export default function AgentTerminalPanel({
   embedded = false,
 }: AgentTerminalPanelProps) {
   // Track when user manually overrides embedded bounds via resize/drag
-  const [embeddedOverride, setEmbeddedOverride] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [embeddedOverride, setEmbeddedOverride] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const embeddedOverrideRef = useRef(embeddedOverride);
   const appSettings = useAppSettings();
   const [entries, setEntries] = useState<ChatEntry[]>([]);
@@ -252,12 +257,17 @@ export default function AgentTerminalPanel({
     if (agentProvider === 'claude') return 'Claude';
     if (agentProvider === 'codex') return 'Codex';
     if (agentProvider === 'cursor') return 'Cursor';
+    if (agentProvider === 'google') return 'Google';
     return 'Agent';
   }, [agentProvider]);
 
-  const canStream = agentProvider === 'claude' || agentProvider === 'codex' || agentProvider === 'cursor';
+  const canStream =
+    agentProvider === 'claude' ||
+    agentProvider === 'codex' ||
+    agentProvider === 'cursor' ||
+    agentProvider === 'google';
   const inputEnabled = Boolean(attachedRelativePath && canStream);
-  const effectiveBounds = (embedded && embeddedOverride) ? embeddedOverride : (forcedBounds ?? panelBounds);
+  const effectiveBounds = embedded && embeddedOverride ? embeddedOverride : (forcedBounds ?? panelBounds);
   const supportsFileSelection = inferMultimodalSupport(agentProvider, currentModel, recentModels);
 
   useEffect(() => {
@@ -627,7 +637,9 @@ export default function AgentTerminalPanel({
     (edge: ResizeEdge) => (e: MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      const currentBounds = embedded ? (embeddedOverrideRef.current ?? forcedBounds ?? panelBounds) : panelBounds;
+      const currentBounds = embedded
+        ? (embeddedOverrideRef.current ?? forcedBounds ?? panelBounds)
+        : panelBounds;
       resizingRef.current = {
         edge,
         startX: e.clientX,
@@ -641,10 +653,21 @@ export default function AgentTerminalPanel({
   );
 
   const handleDragStart = useCallback(
-    (e: MouseEvent) => {
-      e.preventDefault();
+    (e: React.MouseEvent) => {
+      if (e.button !== 0) return;
+
+      // Detect double-click to snap back in embedded mode
+      if (e.detail === 2 && embedded) {
+        setEmbeddedOverride(null);
+        draggingRef.current = null;
+        return;
+      }
+
+      // e.preventDefault(); // Removed to ensure browser double-click detection works reliably
       e.stopPropagation();
-      const currentBounds = embedded ? (embeddedOverrideRef.current ?? forcedBounds ?? panelBounds) : panelBounds;
+      const currentBounds = embedded
+        ? (embeddedOverrideRef.current ?? forcedBounds ?? panelBounds)
+        : panelBounds;
       draggingRef.current = {
         startX: e.clientX,
         startY: e.clientY,
@@ -1869,6 +1892,7 @@ export default function AgentTerminalPanel({
       className="agent-terminal-panel agent-terminal-overlay"
       style={{
         position: 'fixed',
+        userSelect: 'none',
         left: effectiveBounds.x,
         top: effectiveBounds.y,
         width: effectiveBounds.width,
@@ -1924,7 +1948,6 @@ export default function AgentTerminalPanel({
       <div
         className="agent-terminal-header"
         onMouseDown={handleDragStart}
-        onDoubleClick={() => { if (embedded) setEmbeddedOverride(null); }}
         style={{ cursor: 'move' }}
         title={embedded && embeddedOverride ? 'Double-click to snap back to layout' : undefined}
       >
@@ -1984,6 +2007,19 @@ export default function AgentTerminalPanel({
               </select>
             </label>
           ) : null}
+          {appSettings.settings.providerRegistryCache?.providerStatus[agentProvider]?.source && (
+            <div
+              className="agent-terminal-connection-source"
+              title={`Connected via ${appSettings.settings.providerRegistryCache.providerStatus[agentProvider].source}${appSettings.settings.providerRegistryCache.providerStatus[agentProvider].loggedInAs ? ` as ${appSettings.settings.providerRegistryCache.providerStatus[agentProvider].loggedInAs}` : ''}`}
+            >
+              {appSettings.settings.providerRegistryCache.providerStatus[agentProvider].source}
+              {appSettings.settings.providerRegistryCache.providerStatus[agentProvider].loggedInAs && (
+                <span className="agent-terminal-connection-user">
+                  ({appSettings.settings.providerRegistryCache.providerStatus[agentProvider].loggedInAs})
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <div className="agent-terminal-container">

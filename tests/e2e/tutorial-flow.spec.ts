@@ -200,17 +200,50 @@ test('tutorial flow uses stubbed agent output and gates browser step (Claude)', 
       await expect(zone).toBeVisible();
 
       const folder = page.getByTestId('entity-folder').filter({ hasText: 'cookie-clicker' }).first();
-      const folderBox = await folder.boundingBox();
+      const folderIcon = folder.locator('.folder-icon');
+      const folderIconBox = await folderIcon.boundingBox();
       const zoneBox = await zone.boundingBox();
-      if (!folderBox || !zoneBox) throw new Error('Missing move zone or folder bounds');
+      if (!folderIconBox || !zoneBox) throw new Error('Missing move zone or folder icon bounds');
 
-      const folderCenter = { x: folderBox.x + folderBox.width / 2, y: folderBox.y + folderBox.height / 2 };
-      const zoneCenter = { x: zoneBox.x + zoneBox.width / 2, y: zoneBox.y + zoneBox.height / 2 };
+      const folderDragStartX = folderIconBox.x + 10;
+      const folderDragStartY = folderIconBox.y + 10;
+      const folderDragTargetX = zoneBox.x + 10;
+      const folderDragTargetY = zoneBox.y + 10;
 
-      await page.mouse.move(folderCenter.x, folderCenter.y);
-      await page.mouse.down();
-      await page.mouse.move(zoneCenter.x, zoneCenter.y, { steps: 12 });
-      await page.mouse.up();
+      const folderTransform = await folder.evaluate((el) => el.style.transform);
+      console.log('Playwright Bounding Boxes:', { folderIconBox, zoneBox, folderTransform });
+      await page.evaluate(
+        ({ startX, startY, targetX, targetY }) => {
+          const folder = document.querySelector('[data-testid="entity-folder"] .folder-icon');
+          if (!folder) throw new Error('Folder icon not found in DOM');
+
+          // 1. Start Drag
+          folder.dispatchEvent(
+            new MouseEvent('mousedown', { bubbles: true, clientX: startX, clientY: startY, button: 0 })
+          );
+
+          // 2. Break drag threshold
+          document.dispatchEvent(
+            new MouseEvent('mousemove', { bubbles: true, clientX: startX + 10, clientY: startY + 10 })
+          );
+
+          // 3. Move to target
+          document.dispatchEvent(
+            new MouseEvent('mousemove', { bubbles: true, clientX: targetX, clientY: targetY })
+          );
+
+          // 4. Drop
+          document.dispatchEvent(
+            new MouseEvent('mouseup', { bubbles: true, clientX: targetX, clientY: targetY })
+          );
+        },
+        {
+          startX: folderDragStartX,
+          startY: folderDragStartY,
+          targetX: folderDragTargetX,
+          targetY: folderDragTargetY,
+        }
+      );
 
       await expect(page.locator('.attach-beam')).toHaveCount(1);
       await expect(page.locator('.tutorial-overlay')).toContainText('Import An Existing Project', {

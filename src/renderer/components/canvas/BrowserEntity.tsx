@@ -21,6 +21,7 @@ interface BrowserEntityProps {
   onResize?: (width: number, height: number) => void;
   onResizeEnd?: (width: number, height: number) => void;
   onBringToFront?: () => void;
+  onSnapBack?: () => void;
   onRefreshHandled?: (id: string) => void;
   onTutorialMessage?: (payload: { panelId: string; url: string; message: string }) => void;
   forcedBounds?: { x: number; y: number; width: number; height: number };
@@ -46,8 +47,8 @@ function BrowserEntity({
   onBringToFront,
   onRefreshHandled,
   onTutorialMessage,
+  onSnapBack,
   forcedBounds,
-  lockedToLayout: _lockedToLayout = false,
 }: BrowserEntityProps) {
   const [minimized, setMinimized] = useState(false);
   const [urlInput, setUrlInput] = useState(panel.url);
@@ -87,6 +88,11 @@ function BrowserEntity({
   const startDrag = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
 
+    if (e.detail === 2 && onSnapBack) {
+      onSnapBack();
+      return;
+    }
+
     const target = e.target as HTMLElement;
     if (
       target.closest('.browser-controls') ||
@@ -96,7 +102,7 @@ function BrowserEntity({
       return;
     }
 
-    e.preventDefault();
+    // e.preventDefault(); // Removed to ensure browser double-click detection works reliably
     e.stopPropagation();
     onSelect();
     baseStartDrag(e);

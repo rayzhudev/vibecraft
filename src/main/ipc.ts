@@ -284,6 +284,7 @@ const shouldStubTutorialRun = (
   tutorialMode: boolean | undefined,
   scenario?: TutorialScenario
 ): scenario is TutorialScenario => {
+  if (!isTestMode()) return false;
   if (!scenario) return false;
   if (tutorialMode) return true;
   const settings = storage.loadSettings();
@@ -2085,7 +2086,12 @@ export async function registerIpcHandlers(): Promise<void> {
       const validated = validate(EnsureTutorialDevServerSchema, rawPayload);
       if (!validated.success) return validated;
 
-      return handleIpc(() => ensureTutorialDevServer(validated.data));
+      return handleIpc(() => {
+        if (!isTestMode()) {
+          throw new Error('Unauthorized: Tutorial dev server only available in test mode');
+        }
+        return ensureTutorialDevServer(validated.data);
+      });
     }
   );
 
@@ -2095,7 +2101,12 @@ export async function registerIpcHandlers(): Promise<void> {
       const validated = validate(AccelerateTutorialRunSchema, rawPayload);
       if (!validated.success) return validated;
 
-      return handleIpc(() => accelerateTutorialStubRun(validated.data.runId));
+      return handleIpc(() => {
+        if (!isTestMode()) {
+          throw new Error('Unauthorized: Tutorial acceleration only available in test mode');
+        }
+        return accelerateTutorialStubRun(validated.data.runId);
+      });
     }
   );
 

@@ -144,7 +144,6 @@ export function useAgentMagnetism({
       const agent = agentsRef.current.find((entry) => entry.id === agentId);
       if (!agent) return;
 
-      const startAttachment = dragStartAttachmentRef.current.get(agentId);
       let currentAttachment = resolveDragAttachment(agentId, agent.attachedFolderId);
       const lastPos = dragLastPosByAgentRef.current.get(agentId);
       let finalPos = data?.pos ?? lastPos ?? { x: agent.x, y: agent.y };
@@ -190,8 +189,19 @@ export function useAgentMagnetism({
         void attachAgentToFolder(agentId, currentAttachment, finalPos);
       } else {
         void persistAgentPosition(agentId, finalPos.x, finalPos.y);
-        if (startAttachment) {
-          void detachAgent(agentId);
+        // Deterministic detachment: only detach when agent is explicitly dropped
+        // outside gravity radius, evaluated here instead of in a reactive useEffect
+        const prevAttachment = agent.attachedFolderId;
+        if (prevAttachment) {
+          const attachedFolder = foldersRef.current.find((f) => f.id === prevAttachment);
+          if (!attachedFolder || isOutsideGravity({ ...agent, ...finalPos }, attachedFolder)) {
+            void detachAgent(agentId);
+            setAgents((prev) =>
+              prev.map((a) =>
+                a.id === agentId ? { ...a, attachedFolderId: undefined, status: 'offline' } : a
+              )
+            );
+          }
         }
       }
     },
@@ -204,6 +214,7 @@ export function useAgentMagnetism({
       persistAgentPosition,
       projectZones,
       resolveDragAttachment,
+      setAgents,
     ]
   );
 
@@ -360,25 +371,6 @@ export function useAgentMagnetism({
     },
     [applyAgentPatches, computeAgentMovePatch]
   );
-
-  useEffect(() => {
-    const detachIds: string[] = [];
-    agents.forEach((agent) => {
-      if (!agent.attachedFolderId) return;
-      const folder = folders.find((entry) => entry.id === agent.attachedFolderId);
-      if (!folder) return;
-      if (isOutsideGravity(agent, folder)) {
-        detachIds.push(agent.id);
-      }
-    });
-    if (detachIds.length === 0) return;
-    setAgents((prev) =>
-      prev.map((agent) => (detachIds.includes(agent.id) ? { ...agent, attachedFolderId: undefined } : agent))
-    );
-    detachIds.forEach((agentId) => {
-      void detachAgent(agentId);
-    });
-  }, [agents, detachAgent, folders, setAgents]);
 
   return {
     handleAgentMove,

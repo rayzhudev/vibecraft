@@ -99,12 +99,40 @@
   margin-bottom: 48px;
 }
 
+.world-columns {
+  display: grid;
+  grid-template-columns: minmax(520px, 1.4fr) minmax(420px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.world-column {
+  background: rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 20px;
+  max-height: calc(100vh - 260px);
+  overflow: auto;
+  backdrop-filter: blur(4px);
+}
+
+.world-column--import {
+  position: sticky;
+  top: 16px;
+}
+
 .worlds-section-header {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 20px;
+}
+
+.worlds-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .worlds-section-note {
@@ -151,6 +179,24 @@
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
   gap: 16px;
   margin-bottom: 32px;
+}
+
+.worlds-grid--compact {
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+@media (max-width: 1180px) {
+  .world-columns {
+    grid-template-columns: 1fr;
+  }
+  .world-column {
+    max-height: none;
+    position: static;
+  }
+  .worlds-grid,
+  .worlds-grid--compact {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
 }
 
 .world-item {
@@ -422,6 +468,23 @@
     transform 0.2s ease,
     box-shadow 0.2s ease,
     border-color 0.2s ease;
+}
+
+.world-import-toggle-btn {
+  background: transparent;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.world-import-toggle-btn:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+  transform: translateY(-1px);
 }
 
 .world-import-all-btn:hover,

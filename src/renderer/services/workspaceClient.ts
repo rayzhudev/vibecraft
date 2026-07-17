@@ -188,8 +188,10 @@ export const workspaceClient = {
   ): Promise<ProviderStatus | null> => api.agentConnectProviderStatus(provider, options),
   agentConnectProviderInstall: (provider: AgentProvider): Promise<ProviderStatus | null> =>
     api.agentConnectProviderInstall(provider),
-  agentConnectProviderLogin: (provider: AgentProvider): Promise<{ loggedIn: boolean }> =>
-    api.agentConnectProviderLogin(provider),
+  agentConnectProviderLogin: (provider: AgentProvider, options?: Record<string, unknown>): Promise<{ loggedIn: boolean }> =>
+    api.agentConnectProviderLogin(provider, options),
+  agentConnectProviderLogout: (provider: AgentProvider): Promise<void> =>
+    api.agentConnectProviderLogout(provider),
   agentConnectProvidersRefresh: (options?: { force?: boolean }): Promise<ProviderRegistrySnapshot> =>
     api.agentConnectProvidersRefresh(options),
   agentConnectModelsRecent: (

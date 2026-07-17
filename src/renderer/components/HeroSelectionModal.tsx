@@ -24,11 +24,12 @@ interface HeroSelectionModalProps {
   ) => Promise<{ ok: boolean; status?: ProviderStatus | null; error?: string }>;
 }
 
-const ALLOWED_PROVIDERS: AgentProvider[] = [...TUTORIAL_HERO_PROVIDERS];
-const PROVIDER_LABELS: Record<AgentProvider, string> = {
+const ALLOWED_PROVIDERS: AgentProvider[] = [...TUTORIAL_HERO_PROVIDERS, 'cursor', 'google'];
+const PROVIDER_LABELS: Partial<Record<AgentProvider, string>> = {
   claude: 'Claude',
   codex: 'Codex',
   cursor: 'Cursor',
+  google: 'Google',
 };
 
 const isAgentProvider = (value: string): value is AgentProvider =>
@@ -37,7 +38,7 @@ const isAgentProvider = (value: string): value is AgentProvider =>
 const normalizeProviders = (providers: ProviderDescriptor[]): ProviderDescriptor[] => {
   const filtered = providers.filter((provider) => isAgentProvider(provider.id));
   if (filtered.length === 0) {
-    return ALLOWED_PROVIDERS.map((id) => ({ id, name: PROVIDER_LABELS[id] }));
+    return ALLOWED_PROVIDERS.map((id) => ({ id, name: PROVIDER_LABELS[id] ?? id }));
   }
   const ordered = ALLOWED_PROVIDERS.map((id) => filtered.find((provider) => provider.id === id)).filter(
     (provider): provider is ProviderDescriptor => Boolean(provider)
@@ -342,6 +343,11 @@ export default function HeroSelectionModal({
                     <span className={`hero-provider-pill ${getStatusTone(status, installing)}`}>
                       {getStatusLabel(status, installing)}
                     </span>
+                    {status?.source && (
+                      <span className="hero-provider-source-badge" title={status.loggedInAs}>
+                        {status.source}
+                      </span>
+                    )}
                   </div>
                 </div>
                 {(needsInstall || needsLogin) && (

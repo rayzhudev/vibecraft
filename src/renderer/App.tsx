@@ -76,7 +76,6 @@ export default function App() {
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
   const [subscribeOverlayVisible, setSubscribeOverlayVisible] = useState(false);
   const [tutorialCompleteVisible, setTutorialCompleteVisible] = useState(false);
-  const [tourOptInDismissed, setTourOptInDismissed] = useState(false);
   const [priorSettingsPath, setPriorSettingsPath] = useState<string | null>(null);
   const [priorImportPending, setPriorImportPending] = useState(false);
   const [priorImportError, setPriorImportError] = useState<string | null>(null);
@@ -338,6 +337,9 @@ export default function App() {
     tutorialComplete &&
     !tutorialCompleteVisible;
 
+  const showTourOptIn =
+    tutorialComplete && !tutorialState.tourOptInDismissedAt && !tutorialCompleteVisible;
+
   return (
     <ThemeProvider initialTheme="default">
       <div className="app" data-settings-status={appSettings.status}>
@@ -376,15 +378,28 @@ export default function App() {
             onRestartTutorial={() => {
               void launchTutorial();
             }}
+            onDismissTutorial={() => {
+              updateTutorialState(() => createInactiveTutorialState());
+            }}
             tutorialProgress={tutorialProgress}
             onOpenSettings={handleOpenSettings}
-            showTourOptIn={tutorialComplete && !tourOptInDismissed}
+            showTourOptIn={showTourOptIn}
             onTourOptInContinue={() => {
-              setTourOptInDismissed(true);
+              updateTutorialState((current) => ({
+                ...current,
+                tourOptInDismissedAt: Date.now(),
+                updatedAt: Date.now(),
+                version: 1,
+              }));
               setScreen('world-selection');
             }}
             onTourOptInRestart={() => {
-              setTourOptInDismissed(true);
+              updateTutorialState((current) => ({
+                ...current,
+                tourOptInDismissedAt: Date.now(),
+                updatedAt: Date.now(),
+                version: 1,
+              }));
               void launchTutorial();
             }}
           />

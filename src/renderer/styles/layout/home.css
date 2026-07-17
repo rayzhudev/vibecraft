@@ -719,6 +719,29 @@
   white-space: normal;
 }
 
+.tutorial-dismiss-link {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 0;
+  border: none;
+  background: none;
+  color: var(--home-button-subtitle, rgba(255, 255, 255, 0.4));
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-style: italic;
+  letter-spacing: 0.03em;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.tutorial-dismiss-link:hover {
+  opacity: 1;
+  color: var(--home-button-text, rgba(255, 255, 255, 0.7));
+}
+
 .menu-button.primary,
 .menu-button.secondary {
   border-color: var(--home-button-border);

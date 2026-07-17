@@ -69,7 +69,7 @@ export function useWorkspaceAbilities({
       );
       return;
     }
-    if (ability === 'create-agent-claude' || ability === 'create-agent-codex') {
+    if (ability === 'create-agent-claude' || ability === 'create-agent-codex' || ability === 'create-agent-google') {
       const isTutorialSpawn =
         tutorialEnabled &&
         (tutorialState.stepId === 'create-agent' || tutorialState.stepId === 'create-agent-2');

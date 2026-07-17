@@ -437,10 +437,14 @@ export default function WorkspaceCanvas({ controller }: WorkspaceCanvasProps) {
     const provider =
       effectiveHeroProvider === 'codex'
         ? 'create-agent-codex'
-        : effectiveHeroProvider === 'claude'
-          ? 'create-agent-claude'
-          : null;
+        : effectiveHeroProvider === 'google'
+          ? 'create-agent-google'
+          : effectiveHeroProvider === 'claude'
+            ? 'create-agent-claude'
+            : null;
     if (!provider) return;
+    // 'create-agent-claude' is the parent ability that owns the variants dropdown;
+    // we set the active variant to whichever provider the hero uses.
     setAbilityVariantSelection('create-agent-claude', provider);
   }, [effectiveHeroProvider, tutorialEnabled, tutorialState.stepId]);
 
@@ -598,7 +602,15 @@ export default function WorkspaceCanvas({ controller }: WorkspaceCanvasProps) {
       commitPendingCamera();
     }
     lastCameraSyncAtRef.current = 0;
-  }, [cameraSyncMinIntervalMs, commitPendingCamera]);
+  }, [commitPendingCamera]);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      handleCanvasRightClick(e.detail.position, e.detail.target);
+    };
+    window.addEventListener('_test_rightClick', handler);
+    return () => window.removeEventListener('_test_rightClick', handler);
+  }, [handleCanvasRightClick]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -766,18 +778,6 @@ export default function WorkspaceCanvas({ controller }: WorkspaceCanvasProps) {
       cleanup();
     };
   }, [agents, cameraControls, handleSelect, workspace.path]);
-
-  // When layout activates, pan camera to the center of the arranged layout
-  useEffect(() => {
-    if (!projectMode.layoutActive || !cameraControls || projectMode.projectZones.length === 0) return;
-    const xs = projectMode.projectZones.map((z) => z.x + z.w / 2);
-    const ys = projectMode.projectZones.map((z) => z.y + z.h / 2);
-    const cx = xs.reduce((s, v) => s + v, 0) / xs.length;
-    const cy = ys.reduce((s, v) => s + v, 0) / ys.length;
-    // Small delay lets React commit the new positions first
-    const tid = window.setTimeout(() => cameraControls.setCameraCenter({ x: cx, y: cy }), 50);
-    return () => window.clearTimeout(tid);
-  }, [projectMode.layoutActive, projectMode.projectZones, cameraControls]);
 
   const entityCounts = useMemo(
     () => ({
@@ -992,6 +992,7 @@ export default function WorkspaceCanvas({ controller }: WorkspaceCanvasProps) {
                     handleBrowserMove(browser.id, x, y);
                   }}
                   onMoveEnd={(x, y) => handleBrowserMoveEnd(browser.id, x, y)}
+                  onSnapBack={() => projectMode.clearLayoutOverride(browser.id)}
                   onUrlChange={(url) => handleBrowserUrlChange(browser.id, url)}
                   onFaviconChange={(faviconUrl) => handleBrowserFaviconChange(browser.id, faviconUrl)}
                   onClose={() => handleBrowserClose(browser.id)}
@@ -1046,6 +1047,7 @@ export default function WorkspaceCanvas({ controller }: WorkspaceCanvasProps) {
                     handleTerminalMove(terminal.id, x, y);
                   }}
                   onMoveEnd={(x, y) => handleTerminalMoveEnd(terminal.id, x, y)}
+                  onSnapBack={() => projectMode.clearLayoutOverride(terminal.id)}
                   onResize={(width, height) => handleTerminalResize(terminal.id, width, height)}
                   onResizeEnd={(width, height) => handleTerminalResizeEnd(terminal.id, width, height)}
                   onBringToFront={() => {

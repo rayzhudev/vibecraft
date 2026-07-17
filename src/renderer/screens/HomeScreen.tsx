@@ -9,6 +9,7 @@ interface HomeScreenProps {
   onOpenTutorial: () => void;
   onResumeTutorial?: () => void;
   onRestartTutorial: () => void;
+  onDismissTutorial?: () => void;
   tutorialProgress?: { current: number; total: number; label: string } | null;
   onOpenSettings: () => void;
   showTourOptIn?: boolean;
@@ -21,6 +22,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenTutorial,
   onResumeTutorial,
   onRestartTutorial,
+  onDismissTutorial,
   tutorialProgress,
   onOpenSettings,
   showTourOptIn = false,
@@ -318,6 +320,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                   </div>
                 </button>
               </div>
+              {onDismissTutorial && (
+                <button
+                  className="tutorial-dismiss-link"
+                  onClick={onDismissTutorial}
+                  data-testid="home-dismiss-tutorial"
+                  type="button"
+                >
+                  No thanks, skip tutorial
+                </button>
+              )}
             </div>
           ) : null}
           <button
@@ -331,15 +343,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               <span className="button-description">Choose your realm</span>
             </div>
           </button>
-          <button className="menu-button secondary" onClick={onOpenTutorial} data-testid="home-open-tutorial">
-            <div className="button-icon">🎓</div>
-            <div className="button-text">
-              <span className="button-label">{hasTutorialResume ? 'Resume Tutorial' : 'See Tutorial'}</span>
-              <span className="button-description">
-                {hasTutorialResume ? 'Continue where you left off' : 'Start the guided walkthrough'}
-              </span>
-            </div>
-          </button>
+          {!hasTutorialResume && (
+            <button className="menu-button secondary" onClick={onOpenTutorial} data-testid="home-open-tutorial">
+              <div className="button-icon">🎓</div>
+              <div className="button-text">
+                <span className="button-label">Start Tutorial</span>
+                <span className="button-description">Guided walkthrough of VibeCraft</span>
+              </div>
+            </button>
+          )}
           <button className="menu-button secondary" onClick={onOpenSettings} data-testid="home-settings">
             <div className="button-icon">⚙️</div>
             <div className="button-text">

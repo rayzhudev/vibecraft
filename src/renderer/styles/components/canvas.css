@@ -27,7 +27,7 @@
 
 .canvas-controls {
   position: absolute;
-  bottom: 16px;
+  top: 16px;
   right: 16px;
   display: flex;
   align-items: center;

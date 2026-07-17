@@ -47,6 +47,7 @@
   background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-color);
   cursor: move;
+  user-select: none;
 }
 
 .browser-title-section {

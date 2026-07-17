@@ -31,10 +31,11 @@ const PREVIEW_VOICE_IDS: SoundEventId[] = [
   'agent.error',
 ];
 
-const VOICE_PACK_PROVIDER_LABELS: Record<AgentProvider, string> = {
+const VOICE_PACK_PROVIDER_LABELS: Partial<Record<AgentProvider, string>> = {
   claude: 'Claude',
   codex: 'Codex',
   cursor: 'Cursor',
+  google: 'Gemini',
 };
 
 export default function SoundPackSection() {

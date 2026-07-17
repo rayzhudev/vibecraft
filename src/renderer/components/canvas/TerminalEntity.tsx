@@ -44,6 +44,7 @@ interface TerminalEntityProps {
   onResizeEnd?: (width: number, height: number) => void;
   onBringToFront?: () => void;
   onProcessChange?: (processLabel: string | null) => void;
+  onSnapBack?: () => void;
   forcedBounds?: { x: number; y: number; width: number; height: number };
   lockedToLayout?: boolean;
 }
@@ -69,6 +70,7 @@ function TerminalEntity({
   onResizeEnd,
   onBringToFront,
   onProcessChange,
+  onSnapBack,
   forcedBounds,
   lockedToLayout = false,
 }: TerminalEntityProps) {
@@ -667,15 +669,18 @@ function TerminalEntity({
   const handleTitlebarMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (e.button !== 0) return;
-      e.preventDefault();
-      onSelect?.();
-      bringToFront();
-      if (lockedToLayout) {
+
+      if (e.detail === 2 && onSnapBack) {
+        onSnapBack();
         return;
       }
+
+      // e.preventDefault(); // Removed to ensure browser double-click detection works reliably
+      onSelect?.();
+      bringToFront();
       startDrag(e);
     },
-    [bringToFront, lockedToLayout, onSelect, startDrag]
+    [bringToFront, onSelect, startDrag]
   );
 
   const handleTerminalClick = useCallback(
@@ -780,13 +785,11 @@ function TerminalEntity({
           <div className="terminal-dormant-placeholder">Terminal activates when nearby</div>
         )}
       </div>
-      {!lockedToLayout && (
-        <div
-          className="panel-resize-handle terminal-resize-handle"
-          onMouseDown={handleResizeStart}
-          title="Resize terminal"
-        />
-      )}
+      <div
+        className="panel-resize-handle terminal-resize-handle"
+        onMouseDown={handleResizeStart}
+        title="Resize terminal"
+      />
       {showSelectionShield && (
         <div className="windowed-selection-shield" data-testid="windowed-selection-shield" aria-hidden />
       )}

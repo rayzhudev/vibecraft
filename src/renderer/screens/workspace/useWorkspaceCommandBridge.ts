@@ -31,6 +31,7 @@ const resolveCommandProvider = (
 ): AgentProvider | undefined => {
   if (invocation.id === 'create-agent-claude') return 'claude';
   if (invocation.id === 'create-agent-codex') return 'codex';
+  if (invocation.id === 'create-agent-google') return 'google';
   if (invocation.id !== 'agent-send-prompt' && invocation.id !== 'destroy-agent') return undefined;
   const agentId = getAgentIdFromInvocation(invocation);
   if (!agentId) return undefined;

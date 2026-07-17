@@ -151,6 +151,18 @@
   border: 1px solid rgba(149, 165, 166, 0.35);
 }
 
+.hero-provider-source-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  background: rgba(255, 215, 0, 0.12);
+  color: #ffd700;
+  border: 1px solid rgba(255, 215, 0, 0.25);
+  border-radius: 4px;
+}
+
 .hero-provider-install {
   justify-self: end;
   padding: 0.5rem 1rem;

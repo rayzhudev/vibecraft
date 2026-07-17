@@ -644,7 +644,6 @@ function normalizeStoredWorkspaces(stored: Workspace[]): Workspace[] {
       return;
     }
     const normalizedPath = normalizeWorkspacePath(workspace.path);
-    if (!fs.existsSync(normalizedPath)) return;
     const name = deriveWorkspaceName(normalizedPath);
     if (seenPaths.has(normalizedPath) || seenIds.has(workspace.id)) return;
     seenPaths.add(normalizedPath);
@@ -994,7 +993,7 @@ export function backupAndImportSettings(): {
     for (const ws of currentWorkspaces) {
       if (!ws || typeof ws.path !== 'string' || !ws.path) continue;
       const normalizedPath = normalizeWorkspacePath(ws.path);
-      if (!fs.existsSync(normalizedPath) || seenPaths.has(normalizedPath)) continue;
+      if (seenPaths.has(normalizedPath)) continue;
       merged.push({ ...ws, path: normalizedPath, name: deriveWorkspaceName(normalizedPath) });
       seenPaths.add(normalizedPath);
     }

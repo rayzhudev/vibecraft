@@ -26,6 +26,7 @@ export default function WorldSelection({ onSelect, onBack, tutorialState }: Worl
   const [priorImportPending, setPriorImportPending] = useState(false);
   const [priorImportError, setPriorImportError] = useState<string | null>(null);
   const [priorImportSummary, setPriorImportSummary] = useState<string | null>(null);
+  const [priorCollapsed, setPriorCollapsed] = useState<boolean>(false);
   const tutorialEnabled = isTutorialActive(tutorialState);
 
   const loadWorkspaces = useCallback(async () => {
@@ -61,12 +62,6 @@ export default function WorldSelection({ onSelect, onBack, tutorialState }: Worl
   }, [tutorialEnabled]);
 
   useEffect(() => {
-    if (tutorialEnabled) {
-      setPriorSources([]);
-      setPriorImportError(null);
-      setPriorImportSummary(null);
-      return;
-    }
     const request = window.electronAPI.getPriorWorkspacePreview?.();
     if (!request) {
       setPriorSources([]);
@@ -113,9 +108,6 @@ export default function WorldSelection({ onSelect, onBack, tutorialState }: Worl
   };
 
   const handleSelectFolder = async () => {
-    if (tutorialEnabled) {
-      return;
-    }
     const selectedPath = await window.electronAPI.selectFolder({ title: 'Select Workspace Folder' });
     if (!selectedPath) {
       return;
@@ -152,15 +144,9 @@ export default function WorldSelection({ onSelect, onBack, tutorialState }: Worl
     [tutorialWorld?.id, tutorialWorld?.path]
   );
 
-  const isInteractive = useCallback(
-    (workspace: Workspace) => !tutorialEnabled || isTutorialWorld(workspace),
-    [isTutorialWorld, tutorialEnabled]
-  );
+  const isInteractive = useCallback((_: Workspace) => true, []);
 
   const handlePlayWorld = async (workspace: Workspace) => {
-    if (tutorialEnabled && !isTutorialWorld(workspace)) {
-      return;
-    }
     setSelectedWorkspaceId(workspace.id);
     const updated = { ...workspace, lastAccessed: Date.now() };
     try {
@@ -173,9 +159,6 @@ export default function WorldSelection({ onSelect, onBack, tutorialState }: Worl
 
   const handleDeleteWorld = async (event: React.MouseEvent, workspaceId: string) => {
     event.stopPropagation();
-    if (tutorialEnabled) {
-      return;
-    }
     try {
       await window.electronAPI.removeRecentWorkspace(workspaceId);
       await loadWorkspaces();
@@ -222,11 +205,8 @@ export default function WorldSelection({ onSelect, onBack, tutorialState }: Worl
     : null;
 
   const handleBackClick = useCallback(() => {
-    if (tutorialEnabled) {
-      return;
-    }
     onBack();
-  }, [onBack, tutorialEnabled]);
+  }, [onBack]);
 
   const handleImportPriorProjects = useCallback(
     async (workspaceToOpen?: PriorWorkspacePreviewEntry) => {
@@ -303,7 +283,7 @@ export default function WorldSelection({ onSelect, onBack, tutorialState }: Worl
         outlineSelector='[data-tutorial-target="tutorial-world"]'
       />
       <div className="world-header">
-        <button className="back-button" onClick={handleBackClick} disabled={tutorialEnabled}>
+        <button className="back-button" onClick={handleBackClick}>
           ← Back
         </button>
         <h1>Select World</h1>
@@ -321,169 +301,178 @@ export default function WorldSelection({ onSelect, onBack, tutorialState }: Worl
             <p>{tutorialBubbleText}</p>
           </div>
         )}
-        <div className="world-list">
-          {!tutorialEnabled && priorSourceGroups.length > 0 && (
-            <div className="worlds-section worlds-section--prior-import">
-              <div className="worlds-section-header">
-                <div>
-                  <h2>Detected Prior Projects</h2>
-                  <p className="worlds-section-note">
-                    These were found from earlier installs and backups. Already-imported projects are shown
-                    for reference.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="world-import-all-btn"
-                  onClick={() => {
-                    void handleImportPriorProjects();
-                  }}
-                  disabled={priorImportPending}
-                >
-                  {priorImportPending ? 'Importing…' : 'Import All'}
-                </button>
-              </div>
-              {priorSourceGroups.map((source) => (
-                <div key={source.sourceDir ?? source.sourceName} className="prior-source-group">
-                  <div className="prior-source-group-header">
-                    <div>
-                      <h3>{source.sourceName ?? 'Detected Source'}</h3>
-                      {formatSourceUpdatedAt(source.sourceUpdatedAt) && (
-                        <p className="prior-source-group-meta">
-                          Snapshot {formatSourceUpdatedAt(source.sourceUpdatedAt)}
-                        </p>
+
+        <div className="world-columns">
+          <div className="world-column world-column--recent">
+            {mergedWorkspaces.length > 0 && (
+              <div className="worlds-section">
+                <h2>Recent Worlds</h2>
+                <div className="worlds-grid">
+                  {mergedWorkspaces.map((workspace) => (
+                    <div
+                      key={workspace.id}
+                      className={`world-item ${selectedWorkspaceId === workspace.id ? 'selected' : ''}`}
+                      onClick={isInteractive(workspace) ? () => handlePlayWorld(workspace) : undefined}
+                      data-testid="world-item"
+                      data-workspace-id={workspace.id}
+                      data-workspace-path={workspace.path}
+                      data-tutorial-target={
+                        tutorialEnabled && tutorialBubbleAnchor?.id === workspace.id
+                          ? 'tutorial-world'
+                          : undefined
+                      }
+                    >
+                      <div className="world-icon">🏗️</div>
+                      <div className="world-info">
+                        <h3>{workspace.name}</h3>
+                        <p className="world-path">{workspace.path}</p>
+                        <p className="world-meta">{formatLastAccessed(workspace.lastAccessed)}</p>
+                      </div>
+                      <div className="world-abilities">
+                        <button
+                          className="delete-button"
+                          onClick={(event) => handleDeleteWorld(event, workspace.id)}
+                          aria-label="Remove workspace"
+                          data-testid="world-delete"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                      {tutorialEnabled && tutorialBubbleAnchor?.id === workspace.id && (
+                        <div
+                          className="tutorial-world-tooltip"
+                          role="note"
+                          data-tutorial-target="tutorial-world-tooltip"
+                        >
+                          <div className="tutorial-world-bubble-title">Select your world</div>
+                          <p>{tutorialBubbleText}</p>
+                        </div>
                       )}
                     </div>
-                  </div>
-                  <div className="worlds-grid">
-                    {source.workspaces.map(({ workspace, alreadyImported }) => (
-                      <div
-                        key={`prior-${source.sourceDir}-${workspace.path}`}
-                        className={`world-item world-item--prior ${alreadyImported ? 'world-item--duplicate' : ''}`}
-                      >
-                        <div className="world-icon">⤴️</div>
-                        <div className="world-info">
-                          <h3>{workspace.name}</h3>
-                          <p className="world-path">{workspace.path}</p>
-                          {workspace.sourceName && (
-                            <p className="world-source">From {workspace.sourceName}</p>
-                          )}
-                          <p className="world-meta">{formatLastAccessed(workspace.lastAccessed)}</p>
-                        </div>
-                        <div className="world-abilities world-abilities--prior-import">
-                          {alreadyImported ? (
-                            <span className="world-import-badge">Already Imported</span>
-                          ) : null}
-                          <button
-                            className="world-import-open-btn"
-                            type="button"
-                            onClick={() => {
-                              void handleImportPriorProjects(workspace);
-                            }}
-                            disabled={priorImportPending || alreadyImported}
-                          >
-                            {alreadyImported
-                              ? 'Imported'
-                              : priorImportPending
-                                ? 'Importing…'
-                                : 'Import & Open'}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  ))}
                 </div>
-              ))}
-              {priorImportSummary && <p className="world-import-summary">{priorImportSummary}</p>}
-              {priorImportError && <p className="world-import-error">{priorImportError}</p>}
-            </div>
-          )}
+              </div>
+            )}
 
-          {mergedWorkspaces.length > 0 && (
-            <div className="worlds-section">
-              <h2>Recent Worlds</h2>
-              <div className="worlds-grid">
-                {mergedWorkspaces.map((workspace) => (
-                  <div
-                    key={workspace.id}
-                    className={`world-item ${selectedWorkspaceId === workspace.id ? 'selected' : ''} ${
-                      tutorialEnabled && !isTutorialWorld(workspace) ? 'is-disabled' : ''
-                    }`}
-                    onClick={isInteractive(workspace) ? () => handlePlayWorld(workspace) : undefined}
-                    data-testid="world-item"
-                    data-workspace-id={workspace.id}
-                    data-workspace-path={workspace.path}
-                    data-tutorial-target={
-                      tutorialEnabled && tutorialBubbleAnchor?.id === workspace.id
-                        ? 'tutorial-world'
-                        : undefined
-                    }
-                  >
-                    <div className="world-icon">🏗️</div>
-                    <div className="world-info">
-                      <h3>{workspace.name}</h3>
-                      <p className="world-path">{workspace.path}</p>
-                      <p className="world-meta">{formatLastAccessed(workspace.lastAccessed)}</p>
-                    </div>
-                    <div className="world-abilities">
-                      <button
-                        className="delete-button"
-                        onClick={
-                          !tutorialEnabled ? (event) => handleDeleteWorld(event, workspace.id) : undefined
-                        }
-                        aria-label="Remove workspace"
-                        data-testid="world-delete"
-                        disabled={tutorialEnabled}
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                    {tutorialEnabled && tutorialBubbleAnchor?.id === workspace.id && (
-                      <div
-                        className="tutorial-world-tooltip"
-                        role="note"
-                        data-tutorial-target="tutorial-world-tooltip"
-                      >
-                        <div className="tutorial-world-bubble-title">Select your world</div>
-                        <p>{tutorialBubbleText}</p>
-                      </div>
-                    )}
+            <div className="world-abilities-section">
+              <h2>Add Workspace</h2>
+              <div className="ability-buttons">
+                <button
+                  className="ability-button select-folder"
+                  onClick={handleSelectFolder}
+                  data-testid="world-ability-select-parent"
+                >
+                  <img className="button-icon" src={entityIcons.folder} alt="" aria-hidden="true" />
+                  <div className="button-content">
+                    <h3>Select Parent Directory</h3>
+                    <p className="button-subtext">
+                      Choose the parent folder that contains your project folders
+                    </p>
+                    <p className="button-hint">e.g. /Projects, /Work</p>
                   </div>
-                ))}
+                </button>
               </div>
             </div>
-          )}
 
-          <div className="world-abilities-section">
-            <h2>Add Workspace</h2>
-            <div className="ability-buttons">
-              <button
-                className="ability-button select-folder"
-                onClick={tutorialEnabled ? undefined : handleSelectFolder}
-                data-testid="world-ability-select-parent"
-                disabled={tutorialEnabled}
-              >
-                <img className="button-icon" src={entityIcons.folder} alt="" aria-hidden="true" />
-                <div className="button-content">
-                  <h3>Select Parent Directory</h3>
-                  <p className="button-subtext">
-                    Choose the parent folder that contains your project folders
-                  </p>
-                  <p className="button-hint">e.g. /Projects, /Work</p>
-                </div>
-              </button>
-            </div>
+            {workspaces.length === 0 && (
+              <div className="empty-state">
+                <h2>No Worlds Found</h2>
+                <p>
+                  VibeCraft workspaces contain multiple project folders. Select a parent directory to get
+                  started.
+                </p>
+              </div>
+            )}
           </div>
 
-          {workspaces.length === 0 && (
-            <div className="empty-state">
-              <h2>No Worlds Found</h2>
-              <p>
-                VibeCraft workspaces contain multiple project folders. Select a parent directory to get
-                started.
-              </p>
-            </div>
-          )}
+          <div className="world-column world-column--import">
+            {!tutorialEnabled && priorSourceGroups.length > 0 && (
+              <div className="worlds-section worlds-section--prior-import">
+                <div className="worlds-section-header">
+                  <div>
+                    <h2>Detected Prior Projects</h2>
+                    <p className="worlds-section-note">
+                      These were found from earlier installs and backups. Already-imported projects are shown
+                      for reference.
+                    </p>
+                  </div>
+                  <div className="worlds-section-actions">
+                    <button
+                      type="button"
+                      className="world-import-toggle-btn"
+                      onClick={() => setPriorCollapsed((v) => !v)}
+                    >
+                      {priorCollapsed ? 'Show' : 'Hide'}
+                    </button>
+                    <button
+                      type="button"
+                      className="world-import-all-btn"
+                      onClick={() => {
+                        void handleImportPriorProjects();
+                      }}
+                      disabled={priorImportPending}
+                    >
+                      {priorImportPending ? 'Importing…' : 'Import All'}
+                    </button>
+                  </div>
+                </div>
+                {!priorCollapsed &&
+                  priorSourceGroups.map((source) => (
+                    <div key={source.sourceDir ?? source.sourceName} className="prior-source-group">
+                      <div className="prior-source-group-header">
+                        <div>
+                          <h3>{source.sourceName ?? 'Detected Source'}</h3>
+                          {formatSourceUpdatedAt(source.sourceUpdatedAt) && (
+                            <p className="prior-source-group-meta">
+                              Snapshot {formatSourceUpdatedAt(source.sourceUpdatedAt)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="worlds-grid worlds-grid--compact">
+                        {source.workspaces.map(({ workspace, alreadyImported }) => (
+                          <div
+                            key={`prior-${source.sourceDir}-${workspace.path}`}
+                            className={`world-item world-item--prior ${alreadyImported ? 'world-item--duplicate' : ''}`}
+                          >
+                            <div className="world-icon">⤴️</div>
+                            <div className="world-info">
+                              <h3>{workspace.name}</h3>
+                              <p className="world-path">{workspace.path}</p>
+                              {workspace.sourceName && (
+                                <p className="world-source">From {workspace.sourceName}</p>
+                              )}
+                              <p className="world-meta">{formatLastAccessed(workspace.lastAccessed)}</p>
+                            </div>
+                            <div className="world-abilities world-abilities--prior-import">
+                              {alreadyImported ? (
+                                <span className="world-import-badge">Already Imported</span>
+                              ) : null}
+                              <button
+                                className="world-import-open-btn"
+                                type="button"
+                                onClick={() => {
+                                  void handleImportPriorProjects(workspace);
+                                }}
+                                disabled={priorImportPending || alreadyImported}
+                              >
+                                {alreadyImported
+                                  ? 'Imported'
+                                  : priorImportPending
+                                    ? 'Importing…'
+                                    : 'Import & Open'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                {priorImportSummary && <p className="world-import-summary">{priorImportSummary}</p>}
+                {priorImportError && <p className="world-import-error">{priorImportError}</p>}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -152,6 +152,14 @@ export default function AgentTerminalPanel({
   forcedBounds,
   embedded = false,
 }: AgentTerminalPanelProps) {
+  // Track when user manually overrides embedded bounds via resize/drag
+  const [embeddedOverride, setEmbeddedOverride] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const embeddedOverrideRef = useRef(embeddedOverride);
   const appSettings = useAppSettings();
   const [entries, setEntries] = useState<ChatEntry[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -249,12 +257,17 @@ export default function AgentTerminalPanel({
     if (agentProvider === 'claude') return 'Claude';
     if (agentProvider === 'codex') return 'Codex';
     if (agentProvider === 'cursor') return 'Cursor';
+    if (agentProvider === 'google') return 'Google';
     return 'Agent';
   }, [agentProvider]);
 
-  const canStream = agentProvider === 'claude' || agentProvider === 'codex' || agentProvider === 'cursor';
+  const canStream =
+    agentProvider === 'claude' ||
+    agentProvider === 'codex' ||
+    agentProvider === 'cursor' ||
+    agentProvider === 'google';
   const inputEnabled = Boolean(attachedRelativePath && canStream);
-  const effectiveBounds = forcedBounds ?? panelBounds;
+  const effectiveBounds = embedded && embeddedOverride ? embeddedOverride : (forcedBounds ?? panelBounds);
   const supportsFileSelection = inferMultimodalSupport(agentProvider, currentModel, recentModels);
 
   useEffect(() => {
@@ -622,51 +635,88 @@ export default function AgentTerminalPanel({
 
   const handleResizeStart = useCallback(
     (edge: ResizeEdge) => (e: MouseEvent) => {
-      if (embedded) return;
       e.preventDefault();
       e.stopPropagation();
+      const currentBounds = embedded
+        ? (embeddedOverrideRef.current ?? forcedBounds ?? panelBounds)
+        : panelBounds;
       resizingRef.current = {
         edge,
         startX: e.clientX,
         startY: e.clientY,
-        startBounds: { ...panelBounds },
+        startBounds: { ...currentBounds },
       };
       document.body.style.cursor = getCursorForEdge(edge);
       document.body.style.userSelect = 'none';
     },
-    [embedded, panelBounds]
+    [embedded, forcedBounds, panelBounds]
   );
 
   const handleDragStart = useCallback(
-    (e: MouseEvent) => {
-      if (embedded) return;
-      e.preventDefault();
+    (e: React.MouseEvent) => {
+      if (e.button !== 0) return;
+
+      // Detect double-click to snap back in embedded mode
+      if (e.detail === 2 && embedded) {
+        setEmbeddedOverride(null);
+        draggingRef.current = null;
+        return;
+      }
+
+      // e.preventDefault(); // Removed to ensure browser double-click detection works reliably
       e.stopPropagation();
+      const currentBounds = embedded
+        ? (embeddedOverrideRef.current ?? forcedBounds ?? panelBounds)
+        : panelBounds;
       draggingRef.current = {
         startX: e.clientX,
         startY: e.clientY,
-        startPanelX: panelBounds.x,
-        startPanelY: panelBounds.y,
+        startPanelX: currentBounds.x,
+        startPanelY: currentBounds.y,
       };
       document.body.style.cursor = 'move';
       document.body.style.userSelect = 'none';
     },
-    [embedded, panelBounds]
+    [embedded, forcedBounds, panelBounds]
   );
+
+  // Keep embeddedOverrideRef in sync
+  useEffect(() => {
+    embeddedOverrideRef.current = embeddedOverride;
+  }, [embeddedOverride]);
+
+  // Reset override when forcedBounds change (e.g., layout recalculated)
+  useEffect(() => {
+    setEmbeddedOverride(null);
+  }, [forcedBounds?.x, forcedBounds?.y, forcedBounds?.width, forcedBounds?.height]);
 
   useEffect(() => {
     const handleMouseMove = (e: globalThis.MouseEvent) => {
       const topOffset = TITLEBAR_HEIGHT + PANEL_MARGIN;
       if (draggingRef.current) {
         const { startX, startY, startPanelX, startPanelY } = draggingRef.current;
-        const currentBounds = panelBoundsRef.current;
+        const currentWidth = embedded
+          ? (embeddedOverrideRef.current ?? forcedBounds ?? panelBoundsRef.current).width
+          : panelBoundsRef.current.width;
+        const currentHeight = embedded
+          ? (embeddedOverrideRef.current ?? forcedBounds ?? panelBoundsRef.current).height
+          : panelBoundsRef.current.height;
         const deltaX = e.clientX - startX;
         const deltaY = e.clientY - startY;
-        const maxX = window.innerWidth - currentBounds.width - PANEL_MARGIN;
-        const maxY = window.innerHeight - currentBounds.height - PANEL_MARGIN;
+        const maxX = window.innerWidth - currentWidth - PANEL_MARGIN;
+        const maxY = window.innerHeight - currentHeight - PANEL_MARGIN;
         const newX = Math.max(PANEL_MARGIN, Math.min(maxX, startPanelX + deltaX));
         const newY = Math.max(topOffset, Math.min(maxY, startPanelY + deltaY));
-        setPanelBounds((prev) => ({ ...prev, x: newX, y: newY }));
+        if (embedded) {
+          setEmbeddedOverride((prev) => ({
+            x: newX,
+            y: newY,
+            width: prev?.width ?? forcedBounds?.width ?? panelBoundsRef.current.width,
+            height: prev?.height ?? forcedBounds?.height ?? panelBoundsRef.current.height,
+          }));
+        } else {
+          setPanelBounds((prev) => ({ ...prev, x: newX, y: newY }));
+        }
         return;
       }
 
@@ -716,12 +766,19 @@ export default function AgentTerminalPanel({
       const maxX = window.innerWidth - newWidth - PANEL_MARGIN;
       newX = Math.min(maxX, newX);
 
-      setPanelBounds({ x: newX, y: newY, width: newWidth, height: newHeight });
+      const nextBounds = { x: newX, y: newY, width: newWidth, height: newHeight };
+      if (embedded) {
+        setEmbeddedOverride(nextBounds);
+      } else {
+        setPanelBounds(nextBounds);
+      }
     };
 
     const handleMouseUp = () => {
       if (resizingRef.current || draggingRef.current) {
-        savePanelBounds(panelBoundsRef.current);
+        if (!embedded) {
+          savePanelBounds(panelBoundsRef.current);
+        }
         resizingRef.current = null;
         draggingRef.current = null;
         document.body.style.cursor = '';
@@ -735,7 +792,7 @@ export default function AgentTerminalPanel({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [panelBoundsRef, savePanelBounds]);
+  }, [panelBoundsRef, savePanelBounds, embedded, forcedBounds]);
 
   const updateEntry = useCallback((id: string, updater: (entry: ChatEntry) => ChatEntry) => {
     setEntries((prev) => prev.map((entry) => (entry.id === id ? updater(entry) : entry)));
@@ -1835,6 +1892,7 @@ export default function AgentTerminalPanel({
       className="agent-terminal-panel agent-terminal-overlay"
       style={{
         position: 'fixed',
+        userSelect: 'none',
         left: effectiveBounds.x,
         top: effectiveBounds.y,
         width: effectiveBounds.width,
@@ -1851,48 +1909,47 @@ export default function AgentTerminalPanel({
       data-agent-id={agentId}
       data-tutorial-target="agent-terminal"
     >
-      {!embedded && (
-        <>
-          {/* Resize handles */}
-          <div
-            className="agent-terminal-resize-handle agent-terminal-resize-left"
-            onMouseDown={handleResizeStart('left')}
-          />
-          <div
-            className="agent-terminal-resize-handle agent-terminal-resize-right"
-            onMouseDown={handleResizeStart('right')}
-          />
-          <div
-            className="agent-terminal-resize-handle agent-terminal-resize-top"
-            onMouseDown={handleResizeStart('top')}
-          />
-          <div
-            className="agent-terminal-resize-handle agent-terminal-resize-bottom"
-            onMouseDown={handleResizeStart('bottom')}
-          />
-          <div
-            className="agent-terminal-resize-handle agent-terminal-resize-top-left"
-            onMouseDown={handleResizeStart('top-left')}
-          />
-          <div
-            className="agent-terminal-resize-handle agent-terminal-resize-top-right"
-            onMouseDown={handleResizeStart('top-right')}
-          />
-          <div
-            className="agent-terminal-resize-handle agent-terminal-resize-bottom-left"
-            onMouseDown={handleResizeStart('bottom-left')}
-          />
-          <div
-            className="agent-terminal-resize-handle agent-terminal-resize-bottom-right"
-            onMouseDown={handleResizeStart('bottom-right')}
-          />
-        </>
-      )}
+      {/* Resize handles — always visible, even in embedded/focus mode */}
+      <>
+        <div
+          className="agent-terminal-resize-handle agent-terminal-resize-left"
+          onMouseDown={handleResizeStart('left')}
+        />
+        <div
+          className="agent-terminal-resize-handle agent-terminal-resize-right"
+          onMouseDown={handleResizeStart('right')}
+        />
+        <div
+          className="agent-terminal-resize-handle agent-terminal-resize-top"
+          onMouseDown={handleResizeStart('top')}
+        />
+        <div
+          className="agent-terminal-resize-handle agent-terminal-resize-bottom"
+          onMouseDown={handleResizeStart('bottom')}
+        />
+        <div
+          className="agent-terminal-resize-handle agent-terminal-resize-top-left"
+          onMouseDown={handleResizeStart('top-left')}
+        />
+        <div
+          className="agent-terminal-resize-handle agent-terminal-resize-top-right"
+          onMouseDown={handleResizeStart('top-right')}
+        />
+        <div
+          className="agent-terminal-resize-handle agent-terminal-resize-bottom-left"
+          onMouseDown={handleResizeStart('bottom-left')}
+        />
+        <div
+          className="agent-terminal-resize-handle agent-terminal-resize-bottom-right"
+          onMouseDown={handleResizeStart('bottom-right')}
+        />
+      </>
 
       <div
         className="agent-terminal-header"
         onMouseDown={handleDragStart}
-        style={{ cursor: embedded ? 'default' : 'move' }}
+        style={{ cursor: 'move' }}
+        title={embedded && embeddedOverride ? 'Double-click to snap back to layout' : undefined}
       >
         <button
           className="agent-terminal-close"
@@ -1950,6 +2007,19 @@ export default function AgentTerminalPanel({
               </select>
             </label>
           ) : null}
+          {appSettings.settings.providerRegistryCache?.providerStatus[agentProvider]?.source && (
+            <div
+              className="agent-terminal-connection-source"
+              title={`Connected via ${appSettings.settings.providerRegistryCache.providerStatus[agentProvider].source}${appSettings.settings.providerRegistryCache.providerStatus[agentProvider].loggedInAs ? ` as ${appSettings.settings.providerRegistryCache.providerStatus[agentProvider].loggedInAs}` : ''}`}
+            >
+              {appSettings.settings.providerRegistryCache.providerStatus[agentProvider].source}
+              {appSettings.settings.providerRegistryCache.providerStatus[agentProvider].loggedInAs && (
+                <span className="agent-terminal-connection-user">
+                  ({appSettings.settings.providerRegistryCache.providerStatus[agentProvider].loggedInAs})
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <div className="agent-terminal-container">

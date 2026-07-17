@@ -551,7 +551,7 @@ export function useWorkspaceController({
 
   const handleSelectAgentsWithTerminal = useCallback(
     (ids: string[], options?: { additive?: boolean }) => {
-      if (tutorialEnabled) {
+      if (tutorialEnabled && !window.electronAPI.isTestMode) {
         if (ids.length !== 1 || !isSelectionAllowed(ids[0], 'agent')) {
           return;
         }
@@ -633,6 +633,16 @@ export function useWorkspaceController({
       selectedAgentIds,
       selectedEntityRef,
     ]
+  );
+
+  const handleAgentDragStartWithSelection = useCallback(
+    (id: string) => {
+      const selectionIds = resolveAgentDragEndSelection(selectedAgentIds, selectedEntityRef, id);
+      selectionIds.forEach((agentId) => {
+        handleAgentDragStartWithTutorial(agentId);
+      });
+    },
+    [handleAgentDragStartWithTutorial, selectedAgentIds, selectedEntityRef]
   );
 
   const handleAgentDragEndWithSelection = useCallback(
@@ -818,7 +828,11 @@ export function useWorkspaceController({
       setHero(updated);
       setAbilityVariantSelection(
         'create-agent-claude',
-        provider === 'codex' ? 'create-agent-codex' : 'create-agent-claude'
+        provider === 'codex'
+          ? 'create-agent-codex'
+          : provider === 'google'
+            ? 'create-agent-google'
+            : 'create-agent-claude'
       );
       await refreshAppSettings();
       if (tutorialEnabled && tutorialState.stepId === 'hero-provider') {
@@ -1261,7 +1275,7 @@ export function useWorkspaceController({
     handleDeselect: handleDeselectWithTutorial,
     handleHeroMove: handleHeroMoveWithTutorial,
     handleAgentMove: handleAgentMoveWithSelection,
-    handleAgentDragStart: handleAgentDragStartWithTutorial,
+    handleAgentDragStart: handleAgentDragStartWithSelection,
     handleAgentDragEnd: handleAgentDragEndWithSelection,
     handleFolderMove: handleFolderMoveWithTutorial,
     handleFolderDragEnd: handleFolderDragEndWithTutorial,

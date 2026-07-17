@@ -44,6 +44,17 @@ export const COMMAND_METADATA: CommandMetadata[] = [
     example: { id: 'create-agent-codex', args: { x: 400, y: 300 } },
   },
   {
+    id: 'create-agent-google',
+    title: 'Create Gemini Agent',
+    description: 'Spawn a new Google Gemini AI agent in the workspace at a specific position',
+    category: 'agent',
+    args: {
+      x: { type: 'number', required: true, description: 'X coordinate' },
+      y: { type: 'number', required: true, description: 'Y coordinate' },
+    },
+    example: { id: 'create-agent-google', args: { x: 400, y: 300 } },
+  },
+  {
     id: 'move-agent',
     title: 'Move Agent',
     description: 'Move an agent to a new position in the workspace',

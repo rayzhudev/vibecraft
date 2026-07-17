@@ -1,6 +1,10 @@
 import heroSvg from './hero.svg';
 import claudeSvg from './claude.svg';
 import codexSvg from './codex.svg';
+import cursorSvg from './cursor.svg';
+import maitrixSvg from './maitrix.svg';
+
+import googleSvg from './google.svg';
 import folderSvg from './folder.svg';
 import folderWorktreeSvg from './folder-worktree.svg';
 import terminalSvg from './terminal.svg';
@@ -18,7 +22,9 @@ export const entityIcons = {
 export const providerIcons = {
   claude: claudeSvg,
   codex: codexSvg,
-  cursor: claudeSvg,
+  cursor: cursorSvg,
+  google: googleSvg,
+  maitrix: maitrixSvg,
 } as const;
 
 export const uiIcons = {

@@ -5,6 +5,7 @@ import type { CommandBatchItem, CommandInvocation, CommandRunResponse } from '..
 import { logger } from '../logger';
 import { getWorkspaceStoragePath } from '../services/storage';
 import { APP_VERSION } from '../services/appVersion';
+import { notifyWorkspaceActive, notifyWorkspaceClosed } from '../services/memflowBridge';
 import { runCommandTool, runCommandsTool } from './commandTools';
 import { requestWorkspaceLayout } from '../layoutBridge';
 import { COMMAND_METADATA, COMMAND_IDS, COMMANDS_BY_CATEGORY } from './commandMetadata';
@@ -61,6 +62,7 @@ export async function startWorkspaceMcpServer(workspacePath: string): Promise<Mc
   activeServer = server;
   activeServerInfo = { host, port, workspacePath };
   writeMcpInfo(activeServerInfo);
+  notifyWorkspaceActive(workspacePath, { host, port });
 
   log.info('MCP server started', { host, port, workspacePath });
   return activeServerInfo;
@@ -75,6 +77,7 @@ export async function stopWorkspaceMcpServer(workspacePath?: string): Promise<vo
   activeServer = null;
   activeServerInfo = null;
   clearMcpInfo(activePath);
+  notifyWorkspaceClosed(activePath);
   log.info('MCP server stopped', { host, port, workspacePath: activePath });
 }
 

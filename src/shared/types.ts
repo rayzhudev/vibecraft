@@ -80,6 +80,8 @@ export type ProviderStatus = {
   state: ProviderStatusState;
   installed?: boolean;
   message?: string;
+  source?: string;
+  loggedInAs?: string;
 };
 
 export type McpSkillId = string;
@@ -467,6 +469,7 @@ export interface TutorialState {
   promptCompletedAt?: number;
   promptCompletedAt2?: number;
   completionPromptSeenAt?: number;
+  tourOptInDismissedAt?: number;
   updatedAt?: number;
   version: 1;
 }
@@ -617,6 +620,13 @@ export type UpdateStatus = {
   error: string | null;
 };
 
+export type MemflowStatus = {
+  installed: boolean;
+  daemonRunning: boolean;
+  trackedProjectCount: number;
+  lastSyncedAt: string | null;
+};
+
 // IPC API exposed to renderer
 export interface ElectronAPI {
   isTestMode: boolean;
@@ -636,6 +646,10 @@ export interface ElectronAPI {
     workspacePath: string
   ) => Promise<{ success: boolean; host?: string; port?: number; error?: string }>;
   stopMcpServer: (workspacePath?: string) => Promise<{ success: boolean; error?: string }>;
+
+  // Memflow / Maitrix Link
+  memflowStatus: () => Promise<MemflowStatus>;
+  memflowOpenLink: () => Promise<{ success: boolean }>;
 
   // Folders
   loadFolders: (workspacePath: string) => Promise<Folder[]>;
@@ -831,7 +845,11 @@ export interface ElectronAPI {
     options?: { force?: boolean }
   ) => Promise<ProviderStatus | null>;
   agentConnectProviderInstall: (provider: AgentProvider) => Promise<ProviderStatus | null>;
-  agentConnectProviderLogin: (provider: AgentProvider) => Promise<{ loggedIn: boolean }>;
+  agentConnectProviderLogin: (
+    provider: AgentProvider,
+    options?: Record<string, unknown>
+  ) => Promise<{ loggedIn: boolean }>;
+  agentConnectProviderLogout: (provider: AgentProvider) => Promise<void>;
   agentConnectProvidersRefresh: (options?: { force?: boolean }) => Promise<ProviderRegistrySnapshot>;
   agentConnectModelsRecent: (
     provider: AgentProvider,

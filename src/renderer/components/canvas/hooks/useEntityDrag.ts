@@ -34,22 +34,26 @@ export function useEntityDrag({
   const handleMouseDown = useCallback(
     (e: MouseEvent) => {
       if (e.button !== 0) return; // Only left click
-      if (!draggable) return;
-
-      e.preventDefault();
       e.stopPropagation();
       dragging.current = true;
       dragActive.current = false;
       startPos.current = { x: e.clientX, y: e.clientY };
       entityPos.current = { x, y };
+      
+      if (!(window as any).TEST_LOGS) (window as any).TEST_LOGS = [];
+      (window as any).TEST_LOGS.push(`[useEntityDrag] mousedown startPos=(${e.clientX}, ${e.clientY}) ZOOM=${zoom}`);
       lastDragPos.current = { x, y };
 
       const handleMouseMove = (event: globalThis.MouseEvent) => {
         if (!dragging.current) return;
-
+        
         const dxScreen = event.clientX - startPos.current.x;
         const dyScreen = event.clientY - startPos.current.y;
         const screenDistance = Math.hypot(dxScreen, dyScreen);
+        
+        if (!(window as any).TEST_LOGS) (window as any).TEST_LOGS = [];
+        (window as any).TEST_LOGS.push(`[useEntityDrag] mousemove dx=${dxScreen} dy=${dyScreen} dist=${screenDistance} active=${dragActive.current}`);
+
         if (!dragActive.current) {
           if (screenDistance < dragThresholdPx) {
             return;

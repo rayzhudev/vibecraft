@@ -62,9 +62,9 @@ const resolveRightClickTargetFolder = ({
   selectedAgents,
 }: ResolveTargetFolderParams): Folder | null => {
   if (target?.type === 'folder') {
-    const clickedFolder = folders.find((folder) => folder.id === target.id) ?? null;
-    if (!clickedFolder) return null;
-    return isWithinRightClickAttachRadius(position, clickedFolder) ? clickedFolder : null;
+    const folder = folders.find((f) => f.id === target.id) ?? null;
+    if (folder && !isWithinRightClickAttachRadius(position, folder)) return null;
+    return folder;
   }
 
   const selectedAttachedFolderIds = Array.from(
@@ -291,7 +291,15 @@ export function useMovementController({
             : [];
       const selectedHero = selectedAgentIds.length === 0 && selectedEntityRef?.type === 'hero' ? hero : null;
 
-      if (selectedAgents.length === 0 && !selectedHero) return;
+      if (!(window as any).TEST_LOGS) (window as any).TEST_LOGS = [];
+      const log = (msg: string) => (window as any).TEST_LOGS.push(msg);
+
+      log(`handleCanvasRightClick start. position=${position.x},${position.y} target=${JSON.stringify(target)} selectedAgentIds=${selectedAgentIds.length} agents=${agents.length} folders=${folders.length}`);
+
+      if (selectedAgents.length === 0 && !selectedHero) {
+        log('handleCanvasRightClick abort: no agents or hero');
+        return;
+      }
 
       const now = Date.now();
       const groupId = `move-${now}-${Math.random().toString(36).slice(2, 8)}`;
@@ -306,6 +314,8 @@ export function useMovementController({
         folders,
         selectedAgents,
       });
+
+      log(`handleCanvasRightClick targetFolder=${targetFolder?.id}`);
 
       const detachPromises = selectedAgents
         .filter((agent) => agent.attachedFolderId)
@@ -330,10 +340,13 @@ export function useMovementController({
               })
             : getFormationTargets(selectedAgents.length, position);
 
-          setAgents((prev) =>
-            prev.map((agent) => {
+          log(`handleCanvasRightClick targets count=${targets.length}`);
+          setAgents((prev) => {
+            let updatedCount = 0;
+            const next = prev.map((agent) => {
               const idx = selectedAgents.findIndex((entry) => entry.id === agent.id);
               if (idx === -1) return agent;
+              updatedCount++;
               const startPos = startPosById.get(agent.id) ?? { x: agent.x, y: agent.y };
               const intent = createMovementIntent(
                 startPos,
@@ -342,6 +355,7 @@ export function useMovementController({
                 now,
                 targetFolder?.id
               );
+              log(`Agent ${agent.id} intent=${intent.intentType} targetId=${intent.targetId} dur=${intent.duration}`);
               movementGroupByUnitRef.current.set(agent.id, groupId);
               void workspaceClient.setAgentMovementIntent(workspacePath, agent.id, intent);
               return {
@@ -351,8 +365,10 @@ export function useMovementController({
                 movementIntent: intent,
                 attachedFolderId: undefined,
               };
-            })
-          );
+            });
+            log(`setAgents updated ${updatedCount} agents`);
+            return next;
+          });
         }
 
         if (selectedHero) {

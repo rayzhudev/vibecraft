@@ -17,6 +17,16 @@ export type TestModeConfig = {
 };
 
 export function isTestMode(): boolean {
+  // Only allow test mode in development or when explicitly running tests.
+  // We check for common dev/test indicators to prevent accidental activation in production.
+  const isEnvDev = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+  const isDefaultApp = (process as any).defaultApp === true;
+  const isMocha = typeof (global as any).it === 'function'; // Common in test runners
+  
+  if (!isEnvDev && !isDefaultApp && !isMocha) {
+    return false;
+  }
+  
   return process.env[TEST_MODE_ENV] === '1';
 }
 

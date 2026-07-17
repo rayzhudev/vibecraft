@@ -5,6 +5,8 @@ import SoundPackSection from './settings/SoundPackSection';
 import BillingSection from './settings/BillingSection';
 import ThemeSection from './settings/ThemeSection';
 import ProjectsSection from './settings/ProjectsSection';
+import AgentsSection from './settings/AgentsSection';
+import MaitrixLinkSection from './settings/MaitrixLinkSection';
 import type { SettingsSection } from './settings/settingsNav';
 
 interface SettingsScreenProps {
@@ -52,8 +54,10 @@ export default function SettingsScreen({
                 onImportPriorProjects={onImportPriorProjects}
               />
             )}
+            {activeSection === 'agents' && <AgentsSection />}
             {activeSection === 'sound-pack' && <SoundPackSection />}
             {activeSection === 'theme' && <ThemeSection />}
+            {activeSection === 'maitrix-link' && <MaitrixLinkSection />}
             {activeSection === 'billing' && (
               <BillingSection
                 license={license}

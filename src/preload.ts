@@ -35,6 +35,7 @@ import type {
   McpSkillId,
   PriorWorkspacePreviewEntry,
   PriorWorkspacePreviewSource,
+  MemflowStatus,
 } from './shared/types';
 import type { CommandRunRequest, CommandRunResponse } from './shared/commands';
 import type { LayoutRequest, LayoutResponse } from './shared/layout';
@@ -158,7 +159,7 @@ const resolveLicenseDebugState = (): 'trial' | 'expired' | 'subscribed' | undefi
 const licenseDebugState = resolveLicenseDebugState();
 
 const electronAPI = {
-  isTestMode: process.env.VIBECRAFT_TEST_MODE === '1',
+  isTestMode: isDev && process.env.VIBECRAFT_TEST_MODE === '1',
   isProfileMode: process.env.VIBECRAFT_PROFILE === '1',
   isLicenseCheckEnabled,
   licenseDebugState,
@@ -875,12 +876,27 @@ const electronAPI = {
     return unwrap(result, null);
   },
 
-  agentConnectProviderLogin: async (provider: AgentProvider): Promise<{ loggedIn: boolean }> => {
+  agentConnectProviderLogin: async (
+    provider: AgentProvider,
+    options?: Record<string, unknown>
+  ): Promise<{ loggedIn: boolean }> => {
     const result: IpcResult<{ loggedIn: boolean }> = await ipcRenderer.invoke(
       'agentconnect-provider-login',
-      provider
+      provider,
+      options
     );
-    return unwrap(result, { loggedIn: false });
+    // Throw on failure so callers can surface the real error message in the UI
+    if (!isIpcSuccess<{ loggedIn: boolean }>(result)) {
+      throw new Error(result.error ?? 'Login failed');
+    }
+    return result.data;
+  },
+
+  agentConnectProviderLogout: async (provider: AgentProvider): Promise<void> => {
+    const result: IpcResult<void> = await ipcRenderer.invoke('agentconnect-provider-logout', provider);
+    if (!isIpcSuccess<void>(result)) {
+      throw new Error(result.error ?? 'Logout failed');
+    }
   },
 
   agentConnectProvidersRefresh: async (options?: { force?: boolean }): Promise<ProviderRegistrySnapshot> => {
@@ -1285,6 +1301,23 @@ const electronAPI = {
     return () => {
       ipcRenderer.removeListener('power-resume', listener);
     };
+  },
+
+  // Memflow / Maitrix Link
+  memflowStatus: async (): Promise<MemflowStatus> => {
+    const fallback: MemflowStatus = {
+      installed: false,
+      daemonRunning: false,
+      trackedProjectCount: 0,
+      lastSyncedAt: null,
+    };
+    const result: IpcResult<MemflowStatus> = await ipcRenderer.invoke('memflow-status');
+    return unwrap(result, fallback);
+  },
+
+  memflowOpenLink: async (): Promise<{ success: boolean }> => {
+    const result: IpcResult<{ success: boolean }> = await ipcRenderer.invoke('memflow-open-link');
+    return isIpcSuccess(result) ? result.data : { success: false };
   },
 };
 

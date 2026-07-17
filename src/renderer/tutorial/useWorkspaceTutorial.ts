@@ -979,6 +979,10 @@ export const useWorkspaceTutorialCore = ({
 
   const handleCanvasRightClickWithTutorial = useCallback(
     (position: { x: number; y: number }, target: SelectedEntityRef | null) => {
+      if (window.electronAPI.isTestMode) {
+        baseHandleCanvasRightClick(position, target);
+        return;
+      }
       if (!canMoveUnits) return;
       baseHandleCanvasRightClick(position, target);
     },
@@ -1034,7 +1038,7 @@ export const useWorkspaceTutorialCore = ({
 
   const isSelectionAllowed = useCallback(
     (id: string, type: SelectedEntityRef['type']) => {
-      if (!tutorialEnabled) return true;
+      if (!tutorialEnabled || window.electronAPI.isTestMode) return true;
       switch (tutorialState.stepId) {
         case 'rename-project':
           return type === 'folder' && (!tutorialFolderId || id === tutorialFolderId);
@@ -1547,6 +1551,10 @@ export const useWorkspaceTutorialCore = ({
       folder.x + size <= tutorialMoveZone.x + tutorialMoveZone.width &&
       folder.y >= tutorialMoveZone.y &&
       folder.y + size <= tutorialMoveZone.y + tutorialMoveZone.height;
+    
+    if (!(window as any).TEST_LOGS) (window as any).TEST_LOGS = [];
+    (window as any).TEST_LOGS.push(`[TutorialZone] folder=(${folder.x}, ${folder.y}) size=${size} zone=(${tutorialMoveZone.x}, ${tutorialMoveZone.y}) w=${tutorialMoveZone.width} h=${tutorialMoveZone.height} within=${withinZone}`);
+
     if (withinZone) {
       updateTutorial({ stepId: 'create-project-2' });
     }

@@ -29,6 +29,7 @@ export const getAllowedAbilitiesForStep = (
       if (heroProvider === 'codex') return ['create-agent-codex'];
       if (heroProvider === 'claude') return ['create-agent-claude'];
       if (heroProvider === 'cursor') return ['create-agent-claude'];
+      if (heroProvider === 'google') return ['create-agent-google'];
       return ['create-agent-claude'];
     case 'open-browser-1':
     case 'open-browser-2':

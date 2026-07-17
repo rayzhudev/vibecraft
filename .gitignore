@@ -49,3 +49,14 @@ logs/
 *.swp
 *.swo
 *~
+
+# Internal-only features (not for prod release)
+src/renderer/assets/icons/maitrix.svg
+docs/internal/
+
+# Local workspace files
+.gemini/
+test-output.json
+test-output.log
+test.log
+tests.log

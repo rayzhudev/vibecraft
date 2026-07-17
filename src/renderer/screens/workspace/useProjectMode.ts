@@ -90,11 +90,14 @@ export interface ProjectModeReturn {
   setProjectColor: (folderId: string, color: string) => void;
   getProjectFocusBounds: (folderId: string) => { cx: number; cy: number } | null;
   positionOverrides: Map<string, LayoutOverride>;
+  computedLayout: Map<string, LayoutOverride>;
   projectZones: ProjectZone[];
   layoutActive: boolean;
   layoutMode: ProjectLayoutMode;
   setLayoutMode: (mode: ProjectLayoutMode) => void;
   applyLayoutOverride: (id: string, override: Partial<LayoutOverride>) => void;
+  clearLayoutOverride: (id: string) => void;
+  clearAllLayoutOverrides: () => void;
   exitLayout: () => void;
   refreshLayout: () => void;
   // Focus mode
@@ -200,6 +203,7 @@ export function useProjectMode(options: UseProjectModeOptions): ProjectModeRetur
 
   // Ephemeral layout state — not persisted
   const [positionOverrides, setPositionOverrides] = useState<Map<string, LayoutOverride>>(new Map());
+  const [computedLayout, setComputedLayout] = useState<Map<string, LayoutOverride>>(new Map());
   const [projectZones, setProjectZones] = useState<ProjectZone[]>([]);
   const [layoutActive, setLayoutActive] = useState(false);
   const allowUnattachedForTutorial =
@@ -276,6 +280,7 @@ export function useProjectMode(options: UseProjectModeOptions): ProjectModeRetur
 
       const visibleFolders = allFolders.filter((f) => visibleIds.has(f.id));
       if (visibleFolders.length === 0) {
+        setComputedLayout(new Map());
         setPositionOverrides(new Map());
         setProjectZones([]);
         setLayoutActive(false);
@@ -467,6 +472,7 @@ export function useProjectMode(options: UseProjectModeOptions): ProjectModeRetur
         centeredOverrides.set(id, { ...pos, x: pos.x + offsetX, y: pos.y + offsetY });
       }
 
+      setComputedLayout(centeredOverrides);
       setPositionOverrides(centeredOverrides);
       setProjectZones(zones.map((z) => ({ ...z, x: z.x + offsetX, y: z.y + offsetY })));
       setLayoutActive(true);
@@ -476,6 +482,7 @@ export function useProjectMode(options: UseProjectModeOptions): ProjectModeRetur
 
   const exitLayout = useCallback(() => {
     setPositionOverrides(new Map());
+    setComputedLayout(new Map());
     setProjectZones([]);
     setLayoutActive(false);
     setManualLayoutActive(false);
@@ -507,6 +514,24 @@ export function useProjectMode(options: UseProjectModeOptions): ProjectModeRetur
     setLayoutActive(true);
     setManualLayoutActive(true);
   }, []);
+
+  const clearLayoutOverride = useCallback((id: string) => {
+    setPositionOverrides((prev) => {
+      const next = new Map(prev);
+      const original = computedLayout.get(id);
+      if (original) {
+        next.set(id, { ...original });
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  }, [computedLayout]);
+
+  const clearAllLayoutOverrides = useCallback(() => {
+    setPositionOverrides(new Map(computedLayout));
+    setManualLayoutActive(false);
+  }, [computedLayout]);
 
   // Auto-compute layout when enabled/visibility/focus changes or attached window state changes.
   useEffect(() => {
@@ -731,11 +756,14 @@ export function useProjectMode(options: UseProjectModeOptions): ProjectModeRetur
     setProjectColor,
     getProjectFocusBounds,
     positionOverrides,
+    computedLayout,
     projectZones,
     layoutActive: effectiveLayoutActive,
     layoutMode,
     setLayoutMode,
     applyLayoutOverride,
+    clearLayoutOverride,
+    clearAllLayoutOverrides,
     exitLayout,
     refreshLayout,
     focusModeActive,

@@ -207,10 +207,29 @@ test('tutorial flow uses stubbed agent output and gates browser step (Claude)', 
       const folderCenter = { x: folderBox.x + folderBox.width / 2, y: folderBox.y + folderBox.height / 2 };
       const zoneCenter = { x: zoneBox.x + zoneBox.width / 2, y: zoneBox.y + zoneBox.height / 2 };
 
-      await page.mouse.move(folderCenter.x, folderCenter.y);
-      await page.mouse.down();
-      await page.mouse.move(zoneCenter.x, zoneCenter.y, { steps: 12 });
-      await page.mouse.up();
+      // Use programmatic DOM event dispatch for reliable drag simulation
+      await page.evaluate(
+        ({ startX, startY, endX, endY }) => {
+          const el = document.elementFromPoint(startX, startY);
+          if (!el) throw new Error('No element at folder center');
+          const opts = (x: number, y: number) => ({
+            bubbles: true,
+            clientX: x,
+            clientY: y,
+            button: 0,
+          });
+          el.dispatchEvent(new MouseEvent('mousedown', opts(startX, startY)));
+          el.dispatchEvent(new MouseEvent('mousemove', opts(startX + 10, startY)));
+          el.dispatchEvent(new MouseEvent('mousemove', opts(endX, endY)));
+          el.dispatchEvent(new MouseEvent('mouseup', opts(endX, endY)));
+        },
+        {
+          startX: folderCenter.x,
+          startY: folderCenter.y,
+          endX: zoneCenter.x,
+          endY: zoneCenter.y,
+        }
+      );
 
       await expect(page.locator('.attach-beam')).toHaveCount(1);
       await expect(page.locator('.tutorial-overlay')).toContainText('Import An Existing Project', {

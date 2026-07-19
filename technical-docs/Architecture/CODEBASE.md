@@ -108,6 +108,7 @@ Folder/project management:
 - Validates folder paths
 - Manages folder metadata
 - Lists existing workspace folders and imports them into metadata
+- `updateFolderPosition()` — moves a folder and synchronously displaces all attached agent positions by the same delta, preventing coordinate drift
 
 #### `services/browser.ts`
 
@@ -536,7 +537,34 @@ Secure IPC bridge:
    Main → IPC Event: agent-status (idle → starting → online)
    ```
 
-3. **Agent Run:**
+3. **Folder Move (Agent Position Sync):**
+
+   When a folder is moved, `updateFolderPosition` in `workspace.ts` calculates the
+   positional delta (`dx`, `dy`) and synchronously updates the stored positions of
+   all agents attached to that folder in `agents.json`. This ensures agents move
+   with their parent folder and prevents coordinate drift that would cause the
+   magnetism system to incorrectly detach them.
+
+   ```
+   Renderer → handleFolderMove() → setFolders + setAgents (optimistic)
+   Renderer → IPC: update-folder-position
+   Main → workspace.updateFolderPosition()
+           ├─ Update folder in folders.json
+           └─ Update attached agent positions in agents.json (dx, dy)
+   ```
+
+4. **Agent Detachment (Gravity Check):**
+
+   Agent detachment from folders is evaluated deterministically inside
+   `handleAgentDragEnd` in `useAgentMagnetism.ts`, **not** via a reactive
+   `useEffect`. When the user drops an agent, the handler checks whether the
+   final drop position is outside the gravity radius of the agent's attached
+   folder. If so, it triggers `detachAgent()` and updates local state.
+
+   This avoids race conditions where asynchronous IPC state updates could
+   momentarily clobber frontend coordinates and trigger spurious detachments.
+
+5. **Agent Run:**
    ```
    Renderer → IPC: agentconnect-run-agent
    Main → AgentConnect service starts run

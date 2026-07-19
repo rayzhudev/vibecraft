@@ -86,6 +86,8 @@ export function useWorkspaceFolders({
       const dx = current ? x - current.x : 0;
       const dy = current ? y - current.y : 0;
 
+      // Update ref synchronously so subsequent delta calculations use accurate coordinates
+      foldersRef.current = foldersRef.current.map((f) => (f.id === id ? { ...f, x, y } : f));
       setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, x, y } : f)));
 
       if (dx !== 0 || dy !== 0) {

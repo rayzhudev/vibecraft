@@ -28,6 +28,14 @@ import {
   runGooglePrompt,
   clearGoogleSession,
 } from './googleProvider';
+import {
+  getMaitrixStatus,
+  loginMaitrix,
+  logoutMaitrix,
+  listMaitrixModels,
+  runMaitrixPrompt,
+  clearMaitrixSession,
+} from './maitrixProvider';
 
 type RunPromptOptions = {
   prompt: string;
@@ -58,6 +66,10 @@ const PROVIDER_ENV_KEYS = [
   'GOOGLE_API_KEY',
   'GEMINI_API_KEY',
   'CURSOR_API_KEY',
+  'MAITRIX_API_KEY',
+  'MEMFLOW_API_KEY',
+  'MAITRIX_BASE_URL',
+  'LITELLM_BASE_URL',
 ] as const;
 
 let cachedShellEnv: Record<string, string> | null = null;
@@ -250,6 +262,7 @@ const PROVIDER_FALLBACK_NAMES: Record<string, string> = {
   codex: 'Codex',
   cursor: 'Cursor',
   google: 'Gemini',
+  maitrix: 'Maitrix',
 };
 
 export const listProviders = async (): Promise<ProviderDescriptor[]> => {
@@ -270,9 +283,12 @@ export const getProviderStatus = async (
   providerId: ProviderId | string,
   options?: { fast?: boolean; force?: boolean }
 ): Promise<ProviderStatus> => {
-  // Google/Gemini is not a native @agentconnect/host provider — delegate to our standalone module
+  // Google/Gemini and Maitrix are standalone providers — delegate directly
   if (providerId === 'google') {
     return getGoogleStatus();
+  }
+  if (providerId === 'maitrix') {
+    return getMaitrixStatus();
   }
   try {
     const response = await request<{ provider: ProviderInfo }>('acp.providers.status', {
@@ -295,9 +311,12 @@ export const getProviderStatus = async (
 };
 
 export const ensureProviderInstalled = async (providerId: ProviderId | string): Promise<ProviderStatus> => {
-  // Google is always "installed" — it uses the REST API, no binary needed
+  // Google and Maitrix are always "installed" — they use standalone connectors
   if (providerId === 'google') {
     return getGoogleStatus();
+  }
+  if (providerId === 'maitrix') {
+    return getMaitrixStatus();
   }
   await request('acp.providers.ensureInstalled', { provider: providerId });
   const response = await request<{ provider: ProviderInfo }>('acp.providers.status', {
@@ -310,9 +329,12 @@ export const loginProvider = async (
   providerId: ProviderId | string,
   options?: Record<string, unknown>
 ): Promise<{ loggedIn: boolean }> => {
-  // Delegate Google login to our standalone module
+  // Delegate Google and Maitrix login to our standalone modules
   if (providerId === 'google') {
     return loginGoogle(options);
+  }
+  if (providerId === 'maitrix') {
+    return loginMaitrix(options);
   }
   const response = await request<{ loggedIn: boolean }>('acp.providers.login', {
     provider: providerId,
@@ -322,19 +344,26 @@ export const loginProvider = async (
 };
 
 /**
- * Log out from a provider. Currently only implemented for Google/Gemini
- * (clears the stored API key). Other providers handle logout through the bridge.
+ * Log out from a provider. Standalone providers (Google/Gemini, Maitrix)
+ * clear stored credentials locally. Other providers handle logout through the bridge.
  */
 export const logoutProvider = async (providerId: ProviderId | string): Promise<void> => {
   if (providerId === 'google') {
-    logoutGoogle();
+    await logoutGoogle();
+    return;
+  }
+  if (providerId === 'maitrix') {
+    await logoutMaitrix();
   }
 };
 
 export const listRecentModelInfo = async (providerId: ProviderId | string): Promise<AgentModelInfo[]> => {
-  // Google models come from our static list, not the bridge
+  // Google and Maitrix models come from our static rosters, not the bridge
   if (providerId === 'google') {
     return listGoogleModels();
+  }
+  if (providerId === 'maitrix') {
+    return listMaitrixModels();
   }
   const recentResponse = await request<{ models?: ModelInfo[] }>('acp.models.recent', {
     provider: providerId,
@@ -423,6 +452,46 @@ export const runProviderPrompt = async (
           } as unknown as SessionEvent);
         } else if (googleEvent.type === 'error') {
           onEvent({ type: 'error', message: googleEvent.message ?? 'Gemini error' } as SessionEvent);
+        }
+      }
+    );
+    return result;
+  }
+  if (providerId === 'maitrix') {
+    const result = await runMaitrixPrompt(
+      {
+        prompt: options.prompt,
+        system: options.system,
+        model: options.model,
+        resumeSessionId: options.resumeSessionId,
+        signal: options.signal,
+      },
+      (maitrixEvent) => {
+        if (maitrixEvent.type === 'delta') {
+          onEvent({ type: 'delta', text: maitrixEvent.text ?? '' } as SessionEvent);
+        } else if (maitrixEvent.type === 'final') {
+          onSessionId?.(maitrixEvent.sessionId ?? '');
+          onEvent({
+            type: 'final',
+            cancelled: maitrixEvent.cancelled ?? false,
+          } as SessionEvent);
+        } else if (maitrixEvent.type === 'summary') {
+          onEvent({
+            type: 'summary',
+            summary: maitrixEvent.summary ?? '',
+            source: 'prompt',
+          } as SessionEvent);
+        } else if (maitrixEvent.type === 'usage') {
+          onEvent({
+            type: 'usage',
+            usage: {
+              input_tokens: maitrixEvent.usage?.input_tokens,
+              output_tokens: maitrixEvent.usage?.output_tokens,
+              total_tokens: maitrixEvent.usage?.total_tokens,
+            },
+          } as unknown as SessionEvent);
+        } else if (maitrixEvent.type === 'error') {
+          onEvent({ type: 'error', message: maitrixEvent.message ?? 'Maitrix error' } as SessionEvent);
         }
       }
     );
@@ -591,9 +660,13 @@ export const runProviderPrompt = async (
 };
 
 export const cancelSession = async (sessionId: string): Promise<void> => {
-  // Google sessions are managed locally — just clear the context
+  // Google and Maitrix sessions are managed locally — just clear the context
   if (sessionId.startsWith('google-')) {
     clearGoogleSession(sessionId);
+    return;
+  }
+  if (sessionId.startsWith('maitrix-')) {
+    clearMaitrixSession(sessionId);
     return;
   }
   await request('acp.sessions.cancel', { sessionId });

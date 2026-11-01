@@ -8,6 +8,7 @@ import type { ProviderRegistrySnapshot, ProviderStatus } from '../../../src/shar
 // ── Mocks ────────────────────────────────────────────────────────
 vi.mock('../../../src/renderer/state/appSettingsStore', () => ({
   useAppSettings: vi.fn(() => ({ status: 'loaded', settings: {} })),
+  saveSettings: vi.fn(() => Promise.resolve(true)),
 }));
 
 vi.mock('../../../src/renderer/services/workspaceClient', () => ({
@@ -48,12 +49,14 @@ const buildSnapshot = (
       { id: 'codex', name: 'Codex' },
       { id: 'cursor', name: 'Cursor' },
       { id: 'google', name: 'Gemini' },
+      { id: 'maitrix', name: 'Maitrix' },
     ],
     providerStatus: {
       claude: defaultStatus('claude'),
       codex: defaultStatus('codex'),
       cursor: defaultStatus('cursor'),
       google: defaultStatus('google'),
+      maitrix: defaultStatus('maitrix'),
     },
     recentModels: {},
     recentModelInfo: {},
@@ -80,7 +83,7 @@ describe('AgentsSection', () => {
 
   // ── Provider rendering ──────────────────────────────────────
   describe('provider list rendering', () => {
-    test('renders all four provider labels', async () => {
+    test('renders all five provider labels and Auto-Proceed card', async () => {
       render(<AgentsSection />);
 
       await waitFor(() => {
@@ -88,6 +91,8 @@ describe('AgentsSection', () => {
         expect(screen.getByText('OpenAI')).toBeInTheDocument();
         expect(screen.getByText('Cursor')).toBeInTheDocument();
         expect(screen.getByText('Google Gemini')).toBeInTheDocument();
+        expect(screen.getByText('Maitrix')).toBeInTheDocument();
+        expect(screen.getByText('Auto-Proceed (Zero-Blocker Mode)')).toBeInTheDocument();
       });
     });
 
@@ -106,7 +111,7 @@ describe('AgentsSection', () => {
       render(<AgentsSection />);
 
       await waitFor(() => {
-        expect(screen.getAllByText('Connected')).toHaveLength(4);
+        expect(screen.getAllByText('Connected')).toHaveLength(5);
       });
     });
   });
@@ -152,8 +157,8 @@ describe('AgentsSection', () => {
       render(<AgentsSection />);
 
       await waitFor(() => {
-        // All 4 providers are ready with no source → all show Console Subscription
-        expect(screen.getAllByText('Console Subscription')).toHaveLength(4);
+        // All 5 providers are ready with no source → all show Console Subscription
+        expect(screen.getAllByText('Console Subscription')).toHaveLength(5);
       });
     });
   });

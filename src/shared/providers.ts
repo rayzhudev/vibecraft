@@ -16,6 +16,7 @@ export const SUPPORTED_AGENT_PROVIDERS = [
   'codex',
   'google',
   'cursor',
+  'maitrix',
 ] as const satisfies readonly VibeCraftExtendedProviderId[];
 
 export const TUTORIAL_HERO_PROVIDERS = [

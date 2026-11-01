@@ -24,12 +24,13 @@ interface HeroSelectionModalProps {
   ) => Promise<{ ok: boolean; status?: ProviderStatus | null; error?: string }>;
 }
 
-const ALLOWED_PROVIDERS: AgentProvider[] = [...TUTORIAL_HERO_PROVIDERS, 'cursor', 'google'];
+const ALLOWED_PROVIDERS: AgentProvider[] = [...TUTORIAL_HERO_PROVIDERS, 'cursor', 'google', 'maitrix'];
 const PROVIDER_LABELS: Partial<Record<AgentProvider, string>> = {
   claude: 'Claude',
   codex: 'Codex',
   cursor: 'Cursor',
   google: 'Google',
+  maitrix: 'Maitrix',
 };
 
 const isAgentProvider = (value: string): value is AgentProvider =>

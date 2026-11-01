@@ -9,6 +9,7 @@ const TEST_PROVIDER_LABELS: Partial<Record<AgentProvider, string>> = {
   codex: 'Codex',
   cursor: 'Cursor',
   google: 'Gemini',
+  maitrix: 'Maitrix',
 };
 
 export function createAgentConnectClient(): ProviderRegistryClient {

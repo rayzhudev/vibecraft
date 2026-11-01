@@ -490,6 +490,7 @@ export function loadSettings(): AppSettings {
   }
   const next: AppSettings = {
     ...stored,
+    autoProceed: typeof stored.autoProceed === 'boolean' ? stored.autoProceed : true,
     audio,
     ...(heroProvider ? { heroProvider } : {}),
     ...(heroModel ? { heroModel } : {}),

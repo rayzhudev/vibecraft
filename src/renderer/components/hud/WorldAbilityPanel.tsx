@@ -37,6 +37,15 @@ export default function WorldAbilityPanel({ onAbility }: WorldAbilityPanelProps)
       </button>
       <button
         className="world-ability-btn"
+        onClick={() => onAbility({ id: 'create-agent-maitrix' })}
+        data-testid="world-ability-create-agent-maitrix"
+        data-tutorial-target="ability-create-agent-maitrix"
+      >
+        <img className="world-ability-icon" src={providerIcons.maitrix} alt="Maitrix" />
+        <span className="world-ability-label">Maitrix Agent</span>
+      </button>
+      <button
+        className="world-ability-btn"
         onClick={() => onAbility({ id: 'create-folder' })}
         data-testid="world-ability-create-folder"
         data-tutorial-target="ability-create-folder"

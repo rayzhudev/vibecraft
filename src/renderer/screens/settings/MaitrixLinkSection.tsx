@@ -118,6 +118,12 @@ export default function MaitrixLinkSection() {
             </a>
           </p>
         )}
+
+        <div className="maitrix-link-hint" style={{ marginTop: 12 }}>
+          <strong>Unified Multi-Model Router:</strong> Maitrix connects VibeCraft agents to Claude Opus 5.5,
+          GPT-6.1-Sol Codex, Gemini 4 Argon High, and local DGX Spark Qwen coding models with Zero-Blocker
+          Auto-Proceed enabled.
+        </div>
       </div>
     </div>
   );

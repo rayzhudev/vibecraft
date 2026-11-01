@@ -24,7 +24,7 @@ vi.mock('@agentconnect/host', () => ({
   }),
 }));
 
-// Mock googleProvider so it doesn't touch the filesystem or make real HTTP calls in tests
+// Mock googleProvider and maitrixProvider so they don't touch the filesystem or make real HTTP calls in tests
 const googleMocks = vi.hoisted(() => ({
   getGoogleStatus: vi.fn(),
   loginGoogle: vi.fn(),
@@ -34,6 +34,15 @@ const googleMocks = vi.hoisted(() => ({
   clearGoogleSession: vi.fn(),
 }));
 
+const maitrixMocks = vi.hoisted(() => ({
+  getMaitrixStatus: vi.fn(),
+  loginMaitrix: vi.fn(),
+  logoutMaitrix: vi.fn(),
+  listMaitrixModels: vi.fn(),
+  runMaitrixPrompt: vi.fn(),
+  clearMaitrixSession: vi.fn(),
+}));
+
 vi.mock('../../../src/main/services/agentConnect/googleProvider', () => ({
   getGoogleStatus: googleMocks.getGoogleStatus,
   loginGoogle: googleMocks.loginGoogle,
@@ -41,6 +50,15 @@ vi.mock('../../../src/main/services/agentConnect/googleProvider', () => ({
   listGoogleModels: googleMocks.listGoogleModels,
   runGooglePrompt: googleMocks.runGooglePrompt,
   clearGoogleSession: googleMocks.clearGoogleSession,
+}));
+
+vi.mock('../../../src/main/services/agentConnect/maitrixProvider', () => ({
+  getMaitrixStatus: maitrixMocks.getMaitrixStatus,
+  loginMaitrix: maitrixMocks.loginMaitrix,
+  logoutMaitrix: maitrixMocks.logoutMaitrix,
+  listMaitrixModels: maitrixMocks.listMaitrixModels,
+  runMaitrixPrompt: maitrixMocks.runMaitrixPrompt,
+  clearMaitrixSession: maitrixMocks.clearMaitrixSession,
 }));
 
 describe('agent settings connection pipeline', () => {
@@ -58,6 +76,20 @@ describe('agent settings connection pipeline', () => {
     googleMocks.listGoogleModels.mockReturnValue([]);
     googleMocks.runGooglePrompt.mockResolvedValue({ sessionId: 'google-test-session' });
     googleMocks.clearGoogleSession.mockImplementation(() => {});
+
+    // Reset maitrix mocks to sensible defaults
+    maitrixMocks.getMaitrixStatus.mockReturnValue({
+      providerId: 'maitrix',
+      state: 'ready',
+      installed: true,
+      source: 'console',
+      loggedInAs: 'MemFlow Link',
+    });
+    maitrixMocks.loginMaitrix.mockResolvedValue({ loggedIn: true });
+    maitrixMocks.logoutMaitrix.mockResolvedValue(undefined);
+    maitrixMocks.listMaitrixModels.mockReturnValue([]);
+    maitrixMocks.runMaitrixPrompt.mockResolvedValue({ sessionId: 'maitrix-test-session' });
+    maitrixMocks.clearMaitrixSession.mockImplementation(() => {});
     vi.resetModules();
   });
 
@@ -79,7 +111,8 @@ describe('agent settings connection pipeline', () => {
       expect(ids).toContain('codex');
       expect(ids).toContain('cursor');
       expect(ids).toContain('google');
-      expect(providers.length).toBe(4);
+      expect(ids).toContain('maitrix');
+      expect(providers.length).toBe(5);
     });
 
     test('uses host name when available, falls back to defaults', async () => {
@@ -94,11 +127,13 @@ describe('agent settings connection pipeline', () => {
       const cursorEntry = providers.find((p) => p.id === 'cursor');
       const googleEntry = providers.find((p) => p.id === 'google');
       const codexEntry = providers.find((p) => p.id === 'codex');
+      const maitrixEntry = providers.find((p) => p.id === 'maitrix');
 
       expect(claudeEntry?.name).toBe('Claude Code (custom)');
       expect(cursorEntry?.name).toBe('Cursor');
       expect(googleEntry?.name).toBe('Gemini');
       expect(codexEntry?.name).toBe('Codex');
+      expect(maitrixEntry?.name).toBe('Maitrix');
     });
 
     test('handles empty host response by returning fallback entries', async () => {
@@ -107,7 +142,7 @@ describe('agent settings connection pipeline', () => {
       const { listProviders } = await import('../../../src/main/services/agentConnect/embeddedHost');
       const providers = await listProviders();
 
-      expect(providers.length).toBe(4);
+      expect(providers.length).toBe(5);
       expect(providers.every((p) => p.name.length > 0)).toBe(true);
     });
 
@@ -117,7 +152,7 @@ describe('agent settings connection pipeline', () => {
       const { listProviders } = await import('../../../src/main/services/agentConnect/embeddedHost');
       const providers = await listProviders();
 
-      expect(providers.length).toBe(4);
+      expect(providers.length).toBe(5);
     });
   });
 
@@ -374,7 +409,7 @@ describe('agent settings connection pipeline', () => {
 
     test('AgentConnectProviderInstallSchema validates all supported providers', async () => {
       const { AgentConnectProviderInstallSchema } = await import('../../../src/main/ipc/validation');
-      for (const provider of ['claude', 'codex', 'cursor', 'google']) {
+      for (const provider of ['claude', 'codex', 'cursor', 'google', 'maitrix']) {
         const result = AgentConnectProviderInstallSchema.safeParse({ provider });
         expect(result.success, `Expected ${provider} to be valid`).toBe(true);
       }
@@ -689,6 +724,58 @@ describe('agent settings connection pipeline', () => {
       const googleEntry = providers.find((p) => p.id === 'google');
       expect(googleEntry).toBeDefined();
       expect(googleEntry?.name).toBe('Gemini');
+    });
+  });
+
+  /* ================================================================
+   * Maitrix — standalone multi-model router provider
+   * ================================================================ */
+
+  describe('maitrix handling', () => {
+    test('Maitrix status is returned from maitrixProvider, not the bridge', async () => {
+      maitrixMocks.getMaitrixStatus.mockReturnValue({
+        providerId: 'maitrix',
+        state: 'ready',
+        installed: true,
+        source: 'console',
+        loggedInAs: 'MemFlow Daemon (Active)',
+      });
+
+      const { getProviderStatus } = await import('../../../src/main/services/agentConnect/embeddedHost');
+      const status = await getProviderStatus('maitrix');
+
+      expect(status.providerId).toBe('maitrix');
+      expect(status.state).toBe('ready');
+      expect(status.loggedInAs).toBe('MemFlow Daemon (Active)');
+      expect(requestMock).not.toHaveBeenCalled();
+    });
+
+    test('Maitrix login with api_key calls loginMaitrix', async () => {
+      maitrixMocks.loginMaitrix.mockResolvedValue({ loggedIn: true });
+
+      const { loginProvider } = await import('../../../src/main/services/agentConnect/embeddedHost');
+      const result = await loginProvider('maitrix', { method: 'api_key', apiKey: 'mtx-test-key' });
+
+      expect(result.loggedIn).toBe(true);
+      expect(maitrixMocks.loginMaitrix).toHaveBeenCalledWith({
+        method: 'api_key',
+        apiKey: 'mtx-test-key',
+      });
+      expect(requestMock).not.toHaveBeenCalled();
+    });
+
+    test('Maitrix models come from static list, not the bridge', async () => {
+      maitrixMocks.listMaitrixModels.mockReturnValue([
+        { id: 'maitrix-auto', provider: 'maitrix', displayName: 'Maitrix Auto Router' },
+        { id: 'gemini-4-argon-high', provider: 'maitrix', displayName: 'Gemini 4 Argon High' },
+      ]);
+
+      const { listRecentModelInfo } = await import('../../../src/main/services/agentConnect/embeddedHost');
+      const models = await listRecentModelInfo('maitrix');
+
+      expect(models.length).toBe(2);
+      expect(models[0].id).toBe('maitrix-auto');
+      expect(requestMock).not.toHaveBeenCalled();
     });
   });
 });

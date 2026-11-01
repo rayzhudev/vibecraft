@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { AgentProvider, ProviderRegistrySnapshot, ProviderStatus } from '../../../shared/types';
 import { SUPPORTED_AGENT_PROVIDERS } from '../../../shared/providers';
+import { saveSettings, useAppSettings } from '../../state/appSettingsStore';
 import { workspaceClient } from '../../services/workspaceClient';
 import { getProviderIconUrl } from '../../utils/providerIcons';
 import '../../styles/components/agents-section.css';
@@ -19,10 +20,11 @@ const PROVIDER_LABELS: Record<string, string> = {
   codex: 'OpenAI',
   cursor: 'Cursor',
   google: 'Google Gemini',
+  maitrix: 'Maitrix',
 };
 
 /** Providers that support API key authentication */
-const API_KEY_PROVIDERS = new Set<string>(['claude', 'codex', 'google']);
+const API_KEY_PROVIDERS = new Set<string>(['claude', 'codex', 'google', 'maitrix']);
 
 /** Providers that ONLY support API key auth (no console/browser login) */
 const API_KEY_ONLY_PROVIDERS = new Set<string>(['google']);
@@ -34,12 +36,14 @@ const API_KEY_HELP: Record<string, { url: string; label: string }> = {
   claude: { url: 'https://console.anthropic.com/settings/keys', label: 'Anthropic Console' },
   codex: { url: 'https://platform.openai.com/api-keys', label: 'OpenAI Dashboard' },
   google: { url: 'https://aistudio.google.com/app/apikey', label: 'Google AI Studio' },
+  maitrix: { url: 'https://maitrix.ai', label: 'Maitrix Hub' },
 };
 
 const API_KEY_PLACEHOLDERS: Record<string, string> = {
   claude: 'sk-ant-api03-...',
   codex: 'sk-...',
   google: 'AIzaSy...',
+  maitrix: 'mtx-...',
 };
 
 const getStatusTone = (status: ProviderStatus | null | undefined, actionPending: boolean): string => {
@@ -84,10 +88,16 @@ type Toast = {
 };
 
 export default function AgentsSection() {
+  const { settings } = useAppSettings();
+  const autoProceed = settings.autoProceed !== false;
   const [snapshot, setSnapshot] = useState<ProviderRegistrySnapshot>(emptySnapshot);
   const [actionPendingProvider, setActionPendingProvider] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+
+  const handleAutoProceedToggle = (nextValue: boolean) => {
+    saveSettings({ autoProceed: nextValue });
+  };
 
   // Per-provider API key input state
   const [apiKeyInputFor, setApiKeyInputFor] = useState<string | null>(null);
@@ -196,6 +206,36 @@ export default function AgentsSection() {
           {toast.message}
         </div>
       )}
+
+      <div className="agent-provider-item" data-testid="auto-proceed-card">
+        <div className="agent-provider-container">
+          <div className="agent-provider-main">
+            <div className="agent-provider-details">
+              <div className="agent-provider-name">
+                Auto-Proceed (Zero-Blocker Mode)
+                <span className="agent-provider-type-badge">Unstoppable</span>
+              </div>
+              <div className="agent-provider-status">
+                <span className="auth-method-card-desc">
+                  Automatically proceed through tool executions, permissions, and recommended defaults across
+                  all providers without single-click stalls.
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="agent-provider-actions">
+            <label className="sound-pack-mute-toggle">
+              <input
+                type="checkbox"
+                checked={autoProceed}
+                aria-label="Auto-Proceed (Zero-Blocker Mode)"
+                onChange={(event) => handleAutoProceedToggle(event.target.checked)}
+              />
+              <span className="sound-pack-mute-label">{autoProceed ? 'Active' : 'Off'}</span>
+            </label>
+          </div>
+        </div>
+      </div>
 
       <div className="agents-provider-list">
         {SUPPORTED_AGENT_PROVIDERS.map((providerId) => {

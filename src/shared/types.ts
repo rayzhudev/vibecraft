@@ -505,6 +505,7 @@ export interface AppSettings {
   workspacePath?: string;
   edgePanEnabled?: boolean;
   disableGit?: boolean;
+  autoProceed?: boolean;
   audio?: AudioSettings;
   heroProvider?: AgentProvider;
   heroModel?: string;

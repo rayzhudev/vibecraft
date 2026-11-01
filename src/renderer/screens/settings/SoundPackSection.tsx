@@ -36,6 +36,7 @@ const VOICE_PACK_PROVIDER_LABELS: Partial<Record<AgentProvider, string>> = {
   codex: 'Codex',
   cursor: 'Cursor',
   google: 'Gemini',
+  maitrix: 'Maitrix',
 };
 
 export default function SoundPackSection() {

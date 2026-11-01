@@ -258,6 +258,7 @@ export default function AgentTerminalPanel({
     if (agentProvider === 'codex') return 'Codex';
     if (agentProvider === 'cursor') return 'Cursor';
     if (agentProvider === 'google') return 'Google';
+    if (agentProvider === 'maitrix') return 'Maitrix';
     return 'Agent';
   }, [agentProvider]);
 
@@ -265,7 +266,8 @@ export default function AgentTerminalPanel({
     agentProvider === 'claude' ||
     agentProvider === 'codex' ||
     agentProvider === 'cursor' ||
-    agentProvider === 'google';
+    agentProvider === 'google' ||
+    agentProvider === 'maitrix';
   const inputEnabled = Boolean(attachedRelativePath && canStream);
   const effectiveBounds = embedded && embeddedOverride ? embeddedOverride : (forcedBounds ?? panelBounds);
   const supportsFileSelection = inferMultimodalSupport(agentProvider, currentModel, recentModels);

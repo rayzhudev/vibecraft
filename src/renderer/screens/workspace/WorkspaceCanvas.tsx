@@ -439,9 +439,11 @@ export default function WorkspaceCanvas({ controller }: WorkspaceCanvasProps) {
         ? 'create-agent-codex'
         : effectiveHeroProvider === 'google'
           ? 'create-agent-google'
-          : effectiveHeroProvider === 'claude'
-            ? 'create-agent-claude'
-            : null;
+          : effectiveHeroProvider === 'maitrix'
+            ? 'create-agent-maitrix'
+            : effectiveHeroProvider === 'claude'
+              ? 'create-agent-claude'
+              : null;
     if (!provider) return;
     // 'create-agent-claude' is the parent ability that owns the variants dropdown;
     // we set the active variant to whichever provider the hero uses.

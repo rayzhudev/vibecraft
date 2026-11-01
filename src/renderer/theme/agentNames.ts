@@ -92,9 +92,38 @@ export const GOOGLE_NAME_SEQUENCE: ReadonlyArray<string> = [
   'Zephyr',
 ];
 
+export const MAITRIX_NAME_SEQUENCE: ReadonlyArray<string> = [
+  'Neo',
+  'Trinity',
+  'Morpheus',
+  'Oracle',
+  'Niobe',
+  'Seraph',
+  'Link',
+  'Tank',
+  'Dozer',
+  'Switch',
+  'Apoc',
+  'Mouse',
+  'Cypher',
+  'Zion',
+  'Valkyrie',
+  'Vector',
+  'Nexus',
+  'Cipher',
+  'Pulse',
+  'Apex',
+  'Vertex',
+  'Flux',
+  'Helix',
+  'Prime',
+  'Aegis',
+];
+
 export const DEFAULT_AGENT_NAME_SEQUENCES: Record<AgentProvider, AgentNameSequence> = {
   claude: { first: 'Claude', sequence: CLAUDE_NAME_SEQUENCE },
   codex: { first: 'Codex', sequence: CODEX_NAME_SEQUENCE },
   cursor: { first: 'Cursor', sequence: CODEX_NAME_SEQUENCE },
   google: { first: 'Ara', sequence: GOOGLE_NAME_SEQUENCE },
+  maitrix: { first: 'Neo', sequence: MAITRIX_NAME_SEQUENCE },
 };

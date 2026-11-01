@@ -71,6 +71,12 @@ export function buildAbilities(params: BuildParams): AbilityDescriptor[] {
             icon: providerIcons.codex,
             action: { id: 'create-agent-codex' },
           },
+          {
+            id: 'create-agent-maitrix',
+            label: 'Maitrix',
+            icon: providerIcons.maitrix,
+            action: { id: 'create-agent-maitrix' },
+          },
         ],
       },
       { id: 'create-folder', label: 'Project', icon: entityIcons.folder, action: { id: 'create-folder' } },
@@ -87,7 +93,13 @@ export function buildAbilities(params: BuildParams): AbilityDescriptor[] {
   switch (entity.type) {
     case 'hero': {
       const activeProvider =
-        entity.provider === 'codex' ? 'codex' : entity.provider === 'google' ? 'google' : 'claude';
+        entity.provider === 'codex'
+          ? 'codex'
+          : entity.provider === 'google'
+            ? 'google'
+            : entity.provider === 'maitrix'
+              ? 'maitrix'
+              : 'claude';
       return [
         {
           id: 'hero-provider-claude',
@@ -112,6 +124,14 @@ export function buildAbilities(params: BuildParams): AbilityDescriptor[] {
           selected: activeProvider === 'codex',
           tooltip: 'Use Codex',
           action: { id: 'set-hero-provider', args: { provider: 'codex' } },
+        },
+        {
+          id: 'hero-provider-maitrix',
+          label: 'Maitrix',
+          icon: providerIcons.maitrix,
+          selected: activeProvider === 'maitrix',
+          tooltip: 'Use Maitrix',
+          action: { id: 'set-hero-provider', args: { provider: 'maitrix' } },
         },
       ];
     }

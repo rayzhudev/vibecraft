@@ -72,7 +72,8 @@ export function useWorkspaceAbilities({
     if (
       ability === 'create-agent-claude' ||
       ability === 'create-agent-codex' ||
-      ability === 'create-agent-google'
+      ability === 'create-agent-google' ||
+      ability === 'create-agent-maitrix'
     ) {
       const isTutorialSpawn =
         tutorialEnabled &&

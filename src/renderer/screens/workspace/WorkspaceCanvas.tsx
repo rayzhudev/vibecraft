@@ -608,8 +608,12 @@ export default function WorkspaceCanvas({ controller }: WorkspaceCanvasProps) {
   }, [commitPendingCamera]);
 
   useEffect(() => {
-    const handler = (e: any) => {
-      handleCanvasRightClick(e.detail.position, e.detail.target);
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<{
+        position: { x: number; y: number };
+        target: { type: EntityType; id: string } | null;
+      }>;
+      handleCanvasRightClick(custom.detail.position, custom.detail.target);
     };
     window.addEventListener('_test_rightClick', handler);
     return () => window.removeEventListener('_test_rightClick', handler);
@@ -781,6 +785,18 @@ export default function WorkspaceCanvas({ controller }: WorkspaceCanvasProps) {
       cleanup();
     };
   }, [agents, cameraControls, handleSelect, workspace.path]);
+
+  // When layout activates, pan camera to the center of the arranged layout
+  useEffect(() => {
+    if (!projectMode.layoutActive || !cameraControls || projectMode.projectZones.length === 0) return;
+    const xs = projectMode.projectZones.map((z) => z.x + z.w / 2);
+    const ys = projectMode.projectZones.map((z) => z.y + z.h / 2);
+    const cx = xs.reduce((s, v) => s + v, 0) / xs.length;
+    const cy = ys.reduce((s, v) => s + v, 0) / ys.length;
+    // Small delay lets React commit the new positions first
+    const tid = window.setTimeout(() => cameraControls.setCameraCenter({ x: cx, y: cy }), 50);
+    return () => window.clearTimeout(tid);
+  }, [projectMode.layoutActive, projectMode.projectZones, cameraControls]);
 
   const entityCounts = useMemo(
     () => ({

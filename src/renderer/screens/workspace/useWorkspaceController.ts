@@ -832,7 +832,9 @@ export function useWorkspaceController({
           ? 'create-agent-codex'
           : provider === 'google'
             ? 'create-agent-google'
-            : 'create-agent-claude'
+            : provider === 'maitrix'
+              ? 'create-agent-maitrix'
+              : 'create-agent-claude'
       );
       await refreshAppSettings();
       if (tutorialEnabled && tutorialState.stepId === 'hero-provider') {

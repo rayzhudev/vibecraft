@@ -199,13 +199,15 @@ const getBridge = (): AgentConnectBridge => {
   return bridge;
 };
 
-const mapStatus = (info: ProviderInfo): ProviderStatus => {
+const mapStatus = (
+  info: ProviderInfo & { source?: ProviderStatus['source']; loggedInAs?: string }
+): ProviderStatus => {
   const base = {
     providerId: info.id,
     installed: info.installed,
     message: info.updateMessage,
-    source: (info as any).source,
-    loggedInAs: (info as any).loggedInAs,
+    source: info.source,
+    loggedInAs: info.loggedInAs,
   };
 
   if (!info.installed) {

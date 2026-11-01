@@ -83,7 +83,6 @@ const expectAllAgentsSeparated = async (agents: Locator, minDistance = 16, timeo
 test('workspace core flow persists settings and attachments', async () => {
   const { page, cleanup, paths } = await launchTestApp({ startInWorkspace: true });
   page.setDefaultTimeout(10_000);
-  page.on('console', (msg) => console.log('PAGE LOG:', msg.text()));
   const settingsPath = path.join(paths.userData, 'settings.json');
   const folder = page.getByTestId('entity-folder').first();
 
@@ -168,13 +167,7 @@ test('workspace core flow persists settings and attachments', async () => {
           { id: folderId, cx: box.x + box.width / 2, cy: box.y + box.height / 2 }
         );
       }
-      try {
-        await expect(page.locator('[data-testid="attach-beam"]')).toHaveCount(5, { timeout: 15_000 });
-      } catch (err) {
-        const logs = await page.evaluate(() => (window as any).TEST_LOGS || []);
-        console.error('TEST_LOGS DUMP:', logs.join('\n'));
-        throw err;
-      }
+      await expect(page.locator('[data-testid="attach-beam"]')).toHaveCount(5, { timeout: 15_000 });
       await expectAllAgentsSeparated(agents, 40);
     });
 

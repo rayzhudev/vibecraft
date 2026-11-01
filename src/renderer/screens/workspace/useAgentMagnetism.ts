@@ -130,12 +130,6 @@ export function useAgentMagnetism({
       } else {
         pendingAttachRef.current.delete(agentId);
       }
-
-      if (window.electronAPI.isTestMode) {
-        console.log(
-          `[useAgentMagnetism] DragStart agentId=${agentId} currentAttachment=${agent?.attachedFolderId ?? 'none'}`
-        );
-      }
       clearMovementGroupIfComplete(agentId);
     },
     [clearMovementGroupIfComplete, clearPendingArrival]
@@ -179,21 +173,15 @@ export function useAgentMagnetism({
       }
 
       if (currentAttachment) {
-        if (window.electronAPI.isTestMode) {
-          console.log(
-            `[useAgentMagnetism] DragEnd agentId=${agentId} ATTACHING to folderId=${currentAttachment}`
-          );
-        }
         void attachAgentToFolder(agentId, currentAttachment, finalPos);
       } else {
-        if (window.electronAPI.isTestMode) {
-          console.log(`[useAgentMagnetism] DragEnd agentId=${agentId} PERSISTING position (detached)`);
-        }
         void persistAgentPosition(agentId, finalPos.x, finalPos.y);
-
-        if (agent.attachedFolderId) {
-          const folder = foldersRef.current.find((f) => f.id === agent.attachedFolderId);
-          if (!folder || isOutsideGravity({ ...agent, x: finalPos.x, y: finalPos.y }, folder)) {
+        // Deterministic detachment: only detach when agent is explicitly dropped
+        // outside gravity radius, evaluated here instead of in a reactive useEffect
+        const prevAttachment = agent.attachedFolderId;
+        if (prevAttachment) {
+          const attachedFolder = foldersRef.current.find((f) => f.id === prevAttachment);
+          if (!attachedFolder || isOutsideGravity({ ...agent, ...finalPos }, attachedFolder)) {
             void detachAgent(agentId);
             setAgents((prev) =>
               prev.map((a) =>
@@ -320,9 +308,6 @@ export function useAgentMagnetism({
       const lockedAngle = lockedAngleByAgentRef.current.get(id)!;
       const snapPos = getSnapPosition(nearestFolder, lockedAngle);
 
-      if (window.electronAPI.isTestMode) {
-        console.log(`[useAgentMagnetism] SnapLock agentId=${id} onto folderId=${nearestFolder.id}`);
-      }
       pendingAttachRef.current.set(id, nearestFolder.id);
       setPatch({ x: snapPos.x, y: snapPos.y, attachedFolderId: nearestFolder.id, status: 'online' });
 

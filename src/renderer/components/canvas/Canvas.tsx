@@ -568,9 +568,6 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(function Canvas(
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onContextMenu={(e) => {
-        console.error(
-          `[CANVAS DEBUG] contextmenu fired. isPanning=${isPanning} shift=${e.shiftKey} onRightClick=${!!onRightClick}`
-        );
         if (isPanning || e.shiftKey) {
           e.preventDefault();
           return;

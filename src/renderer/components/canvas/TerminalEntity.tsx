@@ -680,7 +680,7 @@ function TerminalEntity({
       bringToFront();
       startDrag(e);
     },
-    [bringToFront, onSelect, startDrag]
+    [bringToFront, onSelect, onSnapBack, startDrag]
   );
 
   const handleTerminalClick = useCallback(

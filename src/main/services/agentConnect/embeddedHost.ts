@@ -60,12 +60,20 @@ const PROVIDER_ENV_KEYS = [
   'CURSOR_API_KEY',
 ] as const;
 
+let cachedShellEnv: Record<string, string> | null = null;
+
 /**
  * Attempt to load the user's login-shell environment.
  * Electron apps launched from macOS Dock/Spotlight don't inherit shell environments,
  * so direnv-managed API keys and custom PATH entries would be missing without this.
  */
 const loadShellEnv = (): Record<string, string> => {
+  if (process.env.VITEST || process.env.VIBECRAFT_TEST_MODE === '1') {
+    return {};
+  }
+  if (cachedShellEnv) {
+    return cachedShellEnv;
+  }
   try {
     const shell = process.env.SHELL || '/bin/zsh';
     const output = execFileSync(shell, ['-ilc', 'env'], {
@@ -80,8 +88,10 @@ const loadShellEnv = (): Record<string, string> => {
         env[line.slice(0, eqIdx)] = line.slice(eqIdx + 1);
       }
     }
+    cachedShellEnv = env;
     return env;
   } catch {
+    cachedShellEnv = {};
     return {};
   }
 };

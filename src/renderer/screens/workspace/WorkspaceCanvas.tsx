@@ -472,6 +472,7 @@ export default function WorkspaceCanvas({ controller }: WorkspaceCanvasProps) {
     if (projectMode.focusedProjectIds.size >= 2) {
       advanceFocusDemoStep();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     tutorialEnabled,
     tutorialState.stepId,

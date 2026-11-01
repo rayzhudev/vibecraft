@@ -1319,19 +1319,16 @@ export function updateFolderPosition(workspacePath: string, folderId: string, x:
     folder.y = y;
     storage.saveFolders(workspacePath, folders);
 
-    if (dx !== 0 || dy !== 0) {
-      const agents = storage.loadAgents(workspacePath);
-      let agentsChanged = false;
-      const updatedAgents = agents.map((a) => {
-        if (a.attachedFolderId === folderId) {
-          agentsChanged = true;
-          return { ...a, x: a.x + dx, y: a.y + dy };
-        }
-        return a;
-      });
-      if (agentsChanged) {
-        storage.saveAgents(workspacePath, updatedAgents);
-      }
+    // Synchronise attached agent positions so they move with the folder
+    const agents = storage.loadAgents(workspacePath);
+    let agentsChanged = false;
+    const updatedAgents = agents.map((a) => {
+      if (a.attachedFolderId !== folderId) return a;
+      agentsChanged = true;
+      return { ...a, x: a.x + dx, y: a.y + dy };
+    });
+    if (agentsChanged) {
+      storage.saveAgents(workspacePath, updatedAgents);
     }
   }
 }

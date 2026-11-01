@@ -151,6 +151,7 @@ export default function ActionBar({
                           <button
                             key={variant.id}
                             className={`action-bar-dropdown-item ${selectedVariant?.id === variant.id ? 'selected' : ''}`}
+                            data-testid={`action-variant-${variant.id}`}
                             onClick={() => handleVariantSelect(ability, variant)}
                           >
                             {renderIcon(variant.icon, 'action-bar-dropdown-icon')}

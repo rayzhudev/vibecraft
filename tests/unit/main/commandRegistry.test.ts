@@ -620,6 +620,25 @@ describe('command registry', () => {
     expect(agentsOnDisk[0].y).toBe(160);
   });
 
+  test('create-agent-maitrix creates a maitrix agent', async () => {
+    const harness = createHarness();
+    await harness.runCommand({ id: 'create-agent-maitrix', args: { x: 180, y: 200 } });
+
+    const state = harness.readState();
+    expect(state.agents).toHaveLength(1);
+    expect(state.agents[0].provider).toBe('maitrix');
+    expect(state.agents[0].x).toBe(180);
+    expect(state.agents[0].y).toBe(200);
+
+    const agentsPath = workspaceMetaPath(harness.workspacePath, AGENTS_FILE);
+    expect(fs.existsSync(agentsPath)).toBe(true);
+    const agentsOnDisk = readAgentsOnDisk(harness.workspacePath);
+    expect(agentsOnDisk).toHaveLength(1);
+    expect(agentsOnDisk[0].provider).toBe('maitrix');
+    expect(agentsOnDisk[0].x).toBe(180);
+    expect(agentsOnDisk[0].y).toBe(200);
+  });
+
   test('create-folder creates a workspace directory', async () => {
     const harness = createHarness();
     const folder = await createFolder(harness, 'alpha');

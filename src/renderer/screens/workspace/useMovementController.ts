@@ -62,9 +62,9 @@ const resolveRightClickTargetFolder = ({
   selectedAgents,
 }: ResolveTargetFolderParams): Folder | null => {
   if (target?.type === 'folder') {
-    const clickedFolder = folders.find((folder) => folder.id === target.id) ?? null;
-    if (!clickedFolder) return null;
-    return isWithinRightClickAttachRadius(position, clickedFolder) ? clickedFolder : null;
+    const folder = folders.find((f) => f.id === target.id) ?? null;
+    if (folder && !isWithinRightClickAttachRadius(position, folder)) return null;
+    return folder;
   }
 
   const selectedAttachedFolderIds = Array.from(

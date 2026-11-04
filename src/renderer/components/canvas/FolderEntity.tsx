@@ -185,6 +185,7 @@ export default function FolderEntity({
       <div className="building-hitbox folder-hitbox" />
       <img
         className="folder-icon"
+        draggable={false}
         src={folder.isWorktree ? entityIcons.folderWorktree : entityIcons.folder}
         alt="Folder"
       />

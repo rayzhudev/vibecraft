@@ -169,6 +169,7 @@ type StorageLike = {
   saveAgents: (workspacePath: string, agents: Agent[]) => boolean;
   loadHero: (workspacePath: string) => Hero;
   saveHero: (workspacePath: string, hero: Hero) => boolean;
+  loadSettings?: () => { autoProceed?: boolean };
 };
 
 export type AgentConnectServiceDependencies = {
@@ -834,6 +835,8 @@ export function createAgentConnectService({
     registerRun(context, abortController);
     emitAgentsUpdated?.(context.workspacePath);
 
+    const autoProceed = storage.loadSettings?.()?.autoProceed !== false;
+
     void streamEvents(context, {
       runId,
       model: agent.model,
@@ -841,6 +844,7 @@ export function createAgentConnectService({
       systemPrompt: buildAgentSystemPrompt({
         displayName: agent.displayName,
         name: agent.name,
+        autoProceed,
       }),
       prompt: request.prompt,
       workspacePath: request.workspacePath,
@@ -897,11 +901,13 @@ export function createAgentConnectService({
     const abortController = new AbortController();
     registerRun(context, abortController);
 
+    const autoProceed = storage.loadSettings?.()?.autoProceed !== false;
+
     void streamEvents(context, {
       runId,
       model: hero.model,
       reasoningEffort: hero.reasoningEffort ?? null,
-      systemPrompt: buildHeroSystemPrompt(hero.name),
+      systemPrompt: buildHeroSystemPrompt(hero.name, { autoProceed }),
       prompt: request.prompt,
       workspacePath: request.workspacePath,
       cwd: request.cwd,

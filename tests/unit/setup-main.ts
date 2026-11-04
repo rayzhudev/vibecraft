@@ -2,6 +2,9 @@ import { JSDOM } from 'jsdom';
 
 process.env.VIBECRAFT_TEST_MODE = '1';
 process.env.VIBECRAFT_TEST_DISABLE_GIT = '0';
+process.env.GIT_CONFIG_COUNT = '1';
+process.env.GIT_CONFIG_KEY_0 = 'core.hooksPath';
+process.env.GIT_CONFIG_VALUE_0 = '/dev/null';
 
 // Node 22+ defines some globals (e.g. navigator) as getter-only; use defineProperty as fallback.
 function setGlobal(key: string, value: unknown): void {

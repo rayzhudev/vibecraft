@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Agent } from '../../../shared/types';
 import { getProviderIconUrl } from '../../utils/providerIcons';
+import { useProviderAuthBadge } from '../../utils/useProviderAuthBadge';
 import { getContextMeter } from '../../utils/contextMeter';
 import UnitEntity from './UnitEntity';
 import SelectionIndicator from './SelectionIndicator';
@@ -43,6 +44,7 @@ export default function AgentEntity({
   const isThinking = agent.status === 'working';
 
   const { percent: contextPercent, variant: contextVariant } = getContextMeter(agent.contextLeft);
+  const authBadge = useProviderAuthBadge(agent.provider);
 
   return (
     <UnitEntity
@@ -89,6 +91,14 @@ export default function AgentEntity({
           title={agent.status}
         />
         {showCompletionBadge && <div className="completion-indicator" aria-hidden="true" />}
+        {authBadge && (
+          <div
+            className={`agent-auth-badge agent-auth-badge--${authBadge}`}
+            title={authBadge === 'key' ? 'API Key' : 'Subscription'}
+          >
+            {authBadge === 'key' ? '🔑' : '🌐'}
+          </div>
+        )}
         {isTerminalOpen && (
           <div className="agent-terminal-badge" title="Terminal open">
             <img src={entityIcons.terminal} alt="Terminal" />

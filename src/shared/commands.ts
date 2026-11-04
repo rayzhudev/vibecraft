@@ -56,6 +56,8 @@ export type CancelHeroRunArgs = Record<string, never>;
 export type CommandArgsById = {
   'create-agent-claude': CreateAgentArgs;
   'create-agent-codex': CreateAgentArgs;
+  'create-agent-google': CreateAgentArgs;
+  'create-agent-maitrix': CreateAgentArgs;
   'create-folder': CreateFolderArgs;
   'create-terminal': CreateTerminalArgs;
   'create-browser': CreateBrowserArgs;
@@ -100,6 +102,8 @@ export type CommandArgsById = {
 export const COMMAND_IDS: ReadonlyArray<keyof CommandArgsById> = [
   'create-agent-claude',
   'create-agent-codex',
+  'create-agent-google',
+  'create-agent-maitrix',
   'create-folder',
   'create-terminal',
   'create-browser',

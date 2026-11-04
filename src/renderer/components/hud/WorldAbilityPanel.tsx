@@ -19,12 +19,30 @@ export default function WorldAbilityPanel({ onAbility }: WorldAbilityPanelProps)
       </button>
       <button
         className="world-ability-btn"
+        onClick={() => onAbility({ id: 'create-agent-google' })}
+        data-testid="world-ability-create-agent-google"
+        data-tutorial-target="ability-create-agent-google"
+      >
+        <img className="world-ability-icon" src={providerIcons.google} alt="Gemini" />
+        <span className="world-ability-label">Gemini Agent</span>
+      </button>
+      <button
+        className="world-ability-btn"
         onClick={() => onAbility({ id: 'create-agent-codex' })}
         data-testid="world-ability-create-agent-codex"
         data-tutorial-target="ability-create-agent-codex"
       >
         <img className="world-ability-icon" src={providerIcons.codex} alt="Codex" />
         <span className="world-ability-label">Codex Agent</span>
+      </button>
+      <button
+        className="world-ability-btn"
+        onClick={() => onAbility({ id: 'create-agent-maitrix' })}
+        data-testid="world-ability-create-agent-maitrix"
+        data-tutorial-target="ability-create-agent-maitrix"
+      >
+        <img className="world-ability-icon" src={providerIcons.maitrix} alt="Maitrix" />
+        <span className="world-ability-label">Maitrix Agent</span>
       </button>
       <button
         className="world-ability-btn"

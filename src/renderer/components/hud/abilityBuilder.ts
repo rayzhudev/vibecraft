@@ -60,10 +60,22 @@ export function buildAbilities(params: BuildParams): AbilityDescriptor[] {
             action: { id: 'create-agent-claude' },
           },
           {
+            id: 'create-agent-google',
+            label: 'Gemini',
+            icon: providerIcons.google,
+            action: { id: 'create-agent-google' },
+          },
+          {
             id: 'create-agent-codex',
             label: 'Codex',
             icon: providerIcons.codex,
             action: { id: 'create-agent-codex' },
+          },
+          {
+            id: 'create-agent-maitrix',
+            label: 'Maitrix',
+            icon: providerIcons.maitrix,
+            action: { id: 'create-agent-maitrix' },
           },
         ],
       },
@@ -80,7 +92,14 @@ export function buildAbilities(params: BuildParams): AbilityDescriptor[] {
 
   switch (entity.type) {
     case 'hero': {
-      const activeProvider = entity.provider === 'codex' ? 'codex' : 'claude';
+      const activeProvider =
+        entity.provider === 'codex'
+          ? 'codex'
+          : entity.provider === 'google'
+            ? 'google'
+            : entity.provider === 'maitrix'
+              ? 'maitrix'
+              : 'claude';
       return [
         {
           id: 'hero-provider-claude',
@@ -91,12 +110,28 @@ export function buildAbilities(params: BuildParams): AbilityDescriptor[] {
           action: { id: 'set-hero-provider', args: { provider: 'claude' } },
         },
         {
+          id: 'hero-provider-google',
+          label: 'Gemini',
+          icon: providerIcons.google,
+          selected: activeProvider === 'google',
+          tooltip: 'Use Gemini',
+          action: { id: 'set-hero-provider', args: { provider: 'google' } },
+        },
+        {
           id: 'hero-provider-codex',
           label: 'Codex',
           icon: providerIcons.codex,
           selected: activeProvider === 'codex',
           tooltip: 'Use Codex',
           action: { id: 'set-hero-provider', args: { provider: 'codex' } },
+        },
+        {
+          id: 'hero-provider-maitrix',
+          label: 'Maitrix',
+          icon: providerIcons.maitrix,
+          selected: activeProvider === 'maitrix',
+          tooltip: 'Use Maitrix',
+          action: { id: 'set-hero-provider', args: { provider: 'maitrix' } },
         },
       ];
     }

@@ -30,11 +30,23 @@ vi.mock('electron', () => ({
   BrowserWindow: {
     getAllWindows: () => [],
   },
+  shell: {
+    openExternal: vi.fn(),
+  },
 }));
 
 vi.mock('../../../src/main/index', () => ({
   emitToRenderer: vi.fn(),
   getMainWindow: () => null,
+}));
+
+vi.mock('../../../src/main/services/memflowBridge', () => ({
+  getMemflowStatus: () => ({
+    installed: true,
+    daemonRunning: true,
+    trackedProjectCount: 3,
+    lastSyncedAt: '2026-07-16T12:00:00Z',
+  }),
 }));
 
 vi.mock('../../../src/main/services/terminalService', () => ({
@@ -344,5 +356,44 @@ describe('get-agent-terminal-state IPC', () => {
     })) as { success: boolean; error?: string };
     expect(setResult.success).toBe(false);
     expect(setResult.error).toContain('Unknown or unsupported MCP skill IDs');
+  });
+
+  test('memflow-status returns current memflow status', async () => {
+    const { registerIpcHandlers } = await import('../../../src/main/ipc');
+    await registerIpcHandlers();
+
+    const handler = handlers.get('memflow-status');
+    expect(handler).toBeTypeOf('function');
+    if (!handler) throw new Error('Handler not registered');
+
+    const result = (await handler({} as unknown)) as {
+      success: boolean;
+      data?: unknown;
+    };
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({
+      installed: true,
+      daemonRunning: true,
+      trackedProjectCount: 3,
+      lastSyncedAt: '2026-07-16T12:00:00Z',
+    });
+  });
+
+  test('memflow-open-link opens external link and returns success', async () => {
+    const electron = await import('electron');
+    const { registerIpcHandlers } = await import('../../../src/main/ipc');
+    await registerIpcHandlers();
+
+    const handler = handlers.get('memflow-open-link');
+    expect(handler).toBeTypeOf('function');
+    if (!handler) throw new Error('Handler not registered');
+
+    const result = (await handler({} as unknown)) as {
+      success: boolean;
+      data?: { success: boolean };
+    };
+    expect(result.success).toBe(true);
+    expect(result.data?.success).toBe(true);
+    expect(electron.shell.openExternal).toHaveBeenCalledWith('https://link.maitrix.app');
   });
 });

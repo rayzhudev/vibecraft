@@ -15,6 +15,7 @@ import { safeWebContentsSend } from './ipc/safeSend';
 import { parseCheckoutSessionId } from './services/licenseClient';
 import { getLicenseClient } from './services/licenseRuntime';
 import { initializeAutoUpdates, onUpdateStatus } from './services/updates';
+import { startMemflowBridge, stopMemflowBridge } from './services/memflowBridge';
 import {
   isRendererReady,
   onRendererReady,
@@ -408,12 +409,14 @@ app.on('ready', () => {
   initializeAutoUpdates({ isTestMode: isTestModeEnabled });
   onUpdateStatus((status) => emitToRenderer('update-status', status));
   flushDeepLinks();
+  startMemflowBridge();
 });
 
 app.on('window-all-closed', () => {
   // Shutdown all agent processes
   processManager.shutdownAll();
   void stopWorkspaceMcpServer();
+  stopMemflowBridge();
 
   cleanupTutorialSandbox();
 
@@ -423,6 +426,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  stopMemflowBridge();
   cleanupTutorialSandbox();
 });
 

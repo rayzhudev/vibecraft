@@ -9,9 +9,6 @@ import {
 } from './attachLayout';
 
 // Keep in sync with workspace layout constants
-const FOLDER_SIZE = 80;
-const AGENT_SIZE = 48;
-
 type LayoutOverride = { x: number; y: number; width?: number; height?: number };
 
 type DragEndData = { pos: Position; dragDistance: number };
@@ -172,16 +169,6 @@ export function useAgentMagnetism({
         );
         if (zoneHit) {
           currentAttachment = zoneHit.folderId;
-          const folder = foldersRef.current.find((f) => f.id === zoneHit.folderId);
-          finalPos = folder
-            ? {
-                x: folder.x + FOLDER_SIZE / 2 - AGENT_SIZE / 2,
-                y: folder.y + FOLDER_SIZE / 2 - AGENT_SIZE / 2,
-              }
-            : {
-                x: zoneHit.x + zoneHit.w / 2 - AGENT_SIZE / 2,
-                y: zoneHit.y + zoneHit.h / 2 - AGENT_SIZE / 2,
-              };
         }
       }
 

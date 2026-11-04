@@ -21,6 +21,7 @@ interface BrowserEntityProps {
   onResize?: (width: number, height: number) => void;
   onResizeEnd?: (width: number, height: number) => void;
   onBringToFront?: () => void;
+  onSnapBack?: () => void;
   onRefreshHandled?: (id: string) => void;
   onTutorialMessage?: (payload: { panelId: string; url: string; message: string }) => void;
   forcedBounds?: { x: number; y: number; width: number; height: number };
@@ -46,8 +47,8 @@ function BrowserEntity({
   onBringToFront,
   onRefreshHandled,
   onTutorialMessage,
+  onSnapBack,
   forcedBounds,
-  lockedToLayout = false,
 }: BrowserEntityProps) {
   const [minimized, setMinimized] = useState(false);
   const [urlInput, setUrlInput] = useState(panel.url);
@@ -85,14 +86,12 @@ function BrowserEntity({
 
   // Custom drag handler that also calls onSelect
   const startDrag = (e: React.MouseEvent) => {
-    if (lockedToLayout) {
-      e.preventDefault();
-      e.stopPropagation();
-      onSelect();
-      bringToFront();
+    if (e.button !== 0) return;
+
+    if (e.detail === 2 && onSnapBack) {
+      onSnapBack();
       return;
     }
-    if (e.button !== 0) return;
 
     const target = e.target as HTMLElement;
     if (
@@ -103,7 +102,7 @@ function BrowserEntity({
       return;
     }
 
-    e.preventDefault();
+    // e.preventDefault(); // Removed to ensure browser double-click detection works reliably
     e.stopPropagation();
     onSelect();
     baseStartDrag(e);
@@ -514,21 +513,19 @@ function BrowserEntity({
           )}
 
           {/* Resize handle */}
-          {!lockedToLayout && (
-            <div
-              onMouseDown={startResize}
-              title="Resize"
-              style={{
-                position: 'absolute',
-                bottom: 0,
-                right: 0,
-                width: 16,
-                height: 16,
-                cursor: 'se-resize',
-                background: 'linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.3) 50%)',
-              }}
-            />
-          )}
+          <div
+            onMouseDown={startResize}
+            title="Resize"
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              right: 0,
+              width: 16,
+              height: 16,
+              cursor: 'se-resize',
+              background: 'linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.3) 50%)',
+            }}
+          />
         </>
       )}
       {showSelectionShield && (

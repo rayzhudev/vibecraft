@@ -437,10 +437,16 @@ export default function WorkspaceCanvas({ controller }: WorkspaceCanvasProps) {
     const provider =
       effectiveHeroProvider === 'codex'
         ? 'create-agent-codex'
-        : effectiveHeroProvider === 'claude'
-          ? 'create-agent-claude'
-          : null;
+        : effectiveHeroProvider === 'google'
+          ? 'create-agent-google'
+          : effectiveHeroProvider === 'maitrix'
+            ? 'create-agent-maitrix'
+            : effectiveHeroProvider === 'claude'
+              ? 'create-agent-claude'
+              : null;
     if (!provider) return;
+    // 'create-agent-claude' is the parent ability that owns the variants dropdown;
+    // we set the active variant to whichever provider the hero uses.
     setAbilityVariantSelection('create-agent-claude', provider);
   }, [effectiveHeroProvider, tutorialEnabled, tutorialState.stepId]);
 
@@ -468,6 +474,7 @@ export default function WorkspaceCanvas({ controller }: WorkspaceCanvasProps) {
     if (projectMode.focusedProjectIds.size >= 2) {
       advanceFocusDemoStep();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     tutorialEnabled,
     tutorialState.stepId,
@@ -598,7 +605,19 @@ export default function WorkspaceCanvas({ controller }: WorkspaceCanvasProps) {
       commitPendingCamera();
     }
     lastCameraSyncAtRef.current = 0;
-  }, [cameraSyncMinIntervalMs, commitPendingCamera]);
+  }, [commitPendingCamera]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<{
+        position: { x: number; y: number };
+        target: { type: EntityType; id: string } | null;
+      }>;
+      handleCanvasRightClick(custom.detail.position, custom.detail.target);
+    };
+    window.addEventListener('_test_rightClick', handler);
+    return () => window.removeEventListener('_test_rightClick', handler);
+  }, [handleCanvasRightClick]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -992,6 +1011,7 @@ export default function WorkspaceCanvas({ controller }: WorkspaceCanvasProps) {
                     handleBrowserMove(browser.id, x, y);
                   }}
                   onMoveEnd={(x, y) => handleBrowserMoveEnd(browser.id, x, y)}
+                  onSnapBack={() => projectMode.clearLayoutOverride(browser.id)}
                   onUrlChange={(url) => handleBrowserUrlChange(browser.id, url)}
                   onFaviconChange={(faviconUrl) => handleBrowserFaviconChange(browser.id, faviconUrl)}
                   onClose={() => handleBrowserClose(browser.id)}
@@ -1046,6 +1066,7 @@ export default function WorkspaceCanvas({ controller }: WorkspaceCanvasProps) {
                     handleTerminalMove(terminal.id, x, y);
                   }}
                   onMoveEnd={(x, y) => handleTerminalMoveEnd(terminal.id, x, y)}
+                  onSnapBack={() => projectMode.clearLayoutOverride(terminal.id)}
                   onResize={(width, height) => handleTerminalResize(terminal.id, width, height)}
                   onResizeEnd={(width, height) => handleTerminalResizeEnd(terminal.id, width, height)}
                   onBringToFront={() => {

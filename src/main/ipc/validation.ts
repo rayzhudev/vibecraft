@@ -362,6 +362,13 @@ export const AgentConnectProviderInstallSchema = z.object({
 
 export const AgentConnectProviderLoginSchema = z.object({
   provider: AgentProvider,
+  options: z
+    .object({
+      method: z.enum(['console', 'api_key']).optional(),
+      apiKey: z.string().optional(),
+    })
+    .passthrough()
+    .optional(),
 });
 
 export const AgentConnectProvidersRefreshSchema = z.object({

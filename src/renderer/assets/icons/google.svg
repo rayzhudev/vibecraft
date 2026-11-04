@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+  <defs>
+    <linearGradient id="gemini-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#4285F4"/>
+      <stop offset="33%"  stop-color="#9B72CB"/>
+      <stop offset="66%"  stop-color="#D96570"/>
+      <stop offset="100%" stop-color="#F4A460"/>
+    </linearGradient>
+  </defs>
+  <!--
+    Gemini 4-pointed star: two bezier "leaf" pairs forming a sparkle.
+    Top/bottom lobes are tall; left/right lobes are narrow.
+  -->
+  <path fill="url(#gemini-grad)"
+    d="M20 3
+       C20 3, 22 12, 20 20
+       C18 12, 20 3, 20 3 Z
+       M20 37
+       C20 37, 22 28, 20 20
+       C18 28, 20 37, 20 37 Z
+       M3 20
+       C3 20, 12 22, 20 20
+       C12 18, 3 20, 3 20 Z
+       M37 20
+       C37 20, 28 22, 20 20
+       C28 18, 37 20, 37 20 Z"
+  />
+</svg>

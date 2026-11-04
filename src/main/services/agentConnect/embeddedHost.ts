@@ -10,6 +10,7 @@ import { app } from 'electron';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { logger } from '../../logger';
 import type {
   AgentModelInfo,
@@ -18,7 +19,23 @@ import type {
   ProviderDescriptor,
   ProviderStatus,
 } from '../../../shared/types';
-import { isSupportedAgentProvider } from '../../../shared/providers';
+import { isSupportedAgentProvider, SUPPORTED_AGENT_PROVIDERS } from '../../../shared/providers';
+import {
+  getGoogleStatus,
+  loginGoogle,
+  logoutGoogle,
+  listGoogleModels,
+  runGooglePrompt,
+  clearGoogleSession,
+} from './googleProvider';
+import {
+  getMaitrixStatus,
+  loginMaitrix,
+  logoutMaitrix,
+  listMaitrixModels,
+  runMaitrixPrompt,
+  clearMaitrixSession,
+} from './maitrixProvider';
 
 type RunPromptOptions = {
   prompt: string;
@@ -39,9 +56,75 @@ let bridge: AgentConnectBridge | null = null;
 let bridgeUnsubscribe: (() => void) | null = null;
 const sessionListeners = new Map<string, Set<(event: SessionEvent) => void>>();
 
+/**
+ * Provider-relevant environment variables that may be set via direnv, .envrc, or shell profiles.
+ * When found, these are merged into process.env so @agentconnect/host provider CLIs can use them.
+ */
+const PROVIDER_ENV_KEYS = [
+  'ANTHROPIC_API_KEY',
+  'OPENAI_API_KEY',
+  'GOOGLE_API_KEY',
+  'GEMINI_API_KEY',
+  'CURSOR_API_KEY',
+  'MAITRIX_API_KEY',
+  'MEMFLOW_API_KEY',
+  'MAITRIX_BASE_URL',
+  'LITELLM_BASE_URL',
+] as const;
+
+let cachedShellEnv: Record<string, string> | null = null;
+
+/**
+ * Attempt to load the user's login-shell environment.
+ * Electron apps launched from macOS Dock/Spotlight don't inherit shell environments,
+ * so direnv-managed API keys and custom PATH entries would be missing without this.
+ */
+const loadShellEnv = (): Record<string, string> => {
+  if (process.env.VITEST || process.env.VIBECRAFT_TEST_MODE === '1') {
+    return {};
+  }
+  if (cachedShellEnv) {
+    return cachedShellEnv;
+  }
+  try {
+    const shell = process.env.SHELL || '/bin/zsh';
+    const output = execFileSync(shell, ['-ilc', 'env'], {
+      encoding: 'utf8',
+      timeout: 5_000,
+      env: { ...process.env, TERM: 'dumb' },
+    });
+    const env: Record<string, string> = {};
+    for (const line of output.split('\n')) {
+      const eqIdx = line.indexOf('=');
+      if (eqIdx > 0) {
+        env[line.slice(0, eqIdx)] = line.slice(eqIdx + 1);
+      }
+    }
+    cachedShellEnv = env;
+    return env;
+  } catch {
+    cachedShellEnv = {};
+    return {};
+  }
+};
+
 const ensureUserPath = (): void => {
+  // Load the login shell environment to pick up direnv / .envrc API keys
+  const shellEnv = loadShellEnv();
+
+  // Merge provider-relevant environment variables from the login shell
+  for (const key of PROVIDER_ENV_KEYS) {
+    if (!process.env[key] && shellEnv[key]) {
+      process.env[key] = shellEnv[key];
+    }
+  }
+
   const delimiter = path.delimiter;
-  const existing = (process.env.PATH ?? '').split(delimiter).filter(Boolean);
+  // Use shell PATH as additional source if the current PATH is sparse (typical for Dock launches)
+  const shellPath = shellEnv.PATH ?? '';
+  const rawPath = process.env.PATH ?? '';
+  const existing = rawPath.split(delimiter).filter(Boolean);
+  const shellEntries = shellPath.split(delimiter).filter(Boolean);
   const seen = new Set<string>();
   const home = os.homedir();
   const preferred = [
@@ -54,8 +137,8 @@ const ensureUserPath = (): void => {
     '/bin',
   ];
   const next: string[] = [];
-  const appendExisting = () => {
-    for (const entry of existing) {
+  const appendEntries = (entries: string[]) => {
+    for (const entry of entries) {
       if (!entry || seen.has(entry)) continue;
       next.push(entry);
       seen.add(entry);
@@ -70,12 +153,10 @@ const ensureUserPath = (): void => {
       }
     }
   };
-  if (existing.length > 0) {
-    appendExisting();
-    appendPreferredMissing();
-  } else {
-    appendPreferredMissing();
-  }
+  // Start with existing PATH entries, then add shell-sourced entries, then preferred
+  appendEntries(existing);
+  appendEntries(shellEntries);
+  appendPreferredMissing();
   process.env.PATH = next.join(delimiter);
 };
 
@@ -118,18 +199,27 @@ const getBridge = (): AgentConnectBridge => {
   return bridge;
 };
 
-const mapStatus = (info: ProviderInfo): ProviderStatus => {
+const mapStatus = (
+  info: ProviderInfo & { source?: ProviderStatus['source']; loggedInAs?: string }
+): ProviderStatus => {
+  const base = {
+    providerId: info.id,
+    installed: info.installed,
+    message: info.updateMessage,
+    source: info.source,
+    loggedInAs: info.loggedInAs,
+  };
+
   if (!info.installed) {
     return {
-      providerId: info.id,
+      ...base,
       state: 'missing',
       installed: false,
-      message: info.updateMessage,
     };
   }
   if (info.updateInProgress) {
     return {
-      providerId: info.id,
+      ...base,
       state: 'installing',
       installed: true,
       message: info.updateMessage ?? 'Updating',
@@ -137,17 +227,16 @@ const mapStatus = (info: ProviderInfo): ProviderStatus => {
   }
   if (!info.loggedIn) {
     return {
-      providerId: info.id,
+      ...base,
       state: 'error',
       installed: true,
       message: 'Login required',
     };
   }
   return {
-    providerId: info.id,
+    ...base,
     state: 'ready',
     installed: true,
-    message: info.updateMessage,
   };
 };
 
@@ -169,16 +258,40 @@ const resolveSessionMcpServers = (
   return mcpServers;
 };
 
+/** Friendly fallback names for providers the bridge may not return */
+const PROVIDER_FALLBACK_NAMES: Record<string, string> = {
+  claude: 'Claude',
+  codex: 'Codex',
+  cursor: 'Cursor',
+  google: 'Gemini',
+  maitrix: 'Maitrix',
+};
+
 export const listProviders = async (): Promise<ProviderDescriptor[]> => {
   const response = await request<{ providers?: ProviderInfo[] }>('acp.providers.list');
-  const providers = (response.providers ?? []).filter((provider) => isSupportedAgentProvider(provider.id));
-  return providers.map((provider) => ({ id: provider.id, name: provider.name }));
+  const hostProviders = (response.providers ?? []).filter((provider) =>
+    isSupportedAgentProvider(provider.id)
+  );
+  const hostMap = new Map<string, ProviderInfo>(hostProviders.map((p) => [p.id, p]));
+
+  // Ensure every SUPPORTED_AGENT_PROVIDERS entry appears, even if the host bridge didn't return it
+  return SUPPORTED_AGENT_PROVIDERS.map((id) => {
+    const host = hostMap.get(id);
+    return { id, name: host?.name ?? PROVIDER_FALLBACK_NAMES[id] ?? id };
+  });
 };
 
 export const getProviderStatus = async (
   providerId: ProviderId | string,
   options?: { fast?: boolean; force?: boolean }
 ): Promise<ProviderStatus> => {
+  // Google/Gemini and Maitrix are standalone providers — delegate directly
+  if (providerId === 'google') {
+    return getGoogleStatus();
+  }
+  if (providerId === 'maitrix') {
+    return getMaitrixStatus();
+  }
   try {
     const response = await request<{ provider: ProviderInfo }>('acp.providers.status', {
       provider: providerId,
@@ -186,15 +299,27 @@ export const getProviderStatus = async (
     });
     return mapStatus(response.provider);
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to load provider status';
+    log.warn('provider.status.error', { providerId, message });
+    // Return 'missing' rather than 'unknown' so the UI shows a clear "Not Installed"
+    // with an actionable Install button instead of an eternal "Checking..." spinner
     return {
       providerId,
-      state: 'unknown',
-      message: error instanceof Error ? error.message : 'Failed to load provider status',
+      state: 'missing',
+      installed: false,
+      message,
     };
   }
 };
 
 export const ensureProviderInstalled = async (providerId: ProviderId | string): Promise<ProviderStatus> => {
+  // Google and Maitrix are always "installed" — they use standalone connectors
+  if (providerId === 'google') {
+    return getGoogleStatus();
+  }
+  if (providerId === 'maitrix') {
+    return getMaitrixStatus();
+  }
   await request('acp.providers.ensureInstalled', { provider: providerId });
   const response = await request<{ provider: ProviderInfo }>('acp.providers.status', {
     provider: providerId,
@@ -206,6 +331,13 @@ export const loginProvider = async (
   providerId: ProviderId | string,
   options?: Record<string, unknown>
 ): Promise<{ loggedIn: boolean }> => {
+  // Delegate Google and Maitrix login to our standalone modules
+  if (providerId === 'google') {
+    return loginGoogle(options);
+  }
+  if (providerId === 'maitrix') {
+    return loginMaitrix(options);
+  }
   const response = await request<{ loggedIn: boolean }>('acp.providers.login', {
     provider: providerId,
     options,
@@ -213,7 +345,28 @@ export const loginProvider = async (
   return response;
 };
 
+/**
+ * Log out from a provider. Standalone providers (Google/Gemini, Maitrix)
+ * clear stored credentials locally. Other providers handle logout through the bridge.
+ */
+export const logoutProvider = async (providerId: ProviderId | string): Promise<void> => {
+  if (providerId === 'google') {
+    await logoutGoogle();
+    return;
+  }
+  if (providerId === 'maitrix') {
+    await logoutMaitrix();
+  }
+};
+
 export const listRecentModelInfo = async (providerId: ProviderId | string): Promise<AgentModelInfo[]> => {
+  // Google and Maitrix models come from our static rosters, not the bridge
+  if (providerId === 'google') {
+    return listGoogleModels();
+  }
+  if (providerId === 'maitrix') {
+    return listMaitrixModels();
+  }
   const recentResponse = await request<{ models?: ModelInfo[] }>('acp.models.recent', {
     provider: providerId,
   });
@@ -240,8 +393,13 @@ export const listRecentModelInfo = async (providerId: ProviderId | string): Prom
   if (listed.length === 0) {
     return normalize(recent);
   }
-  const listedById = new Map(listed.map((model) => [model.id, model]));
-  const merged = recent.map((model) => listedById.get(model.id) ?? model);
+  const recentIds = new Set(recent.map((model) => model.id));
+  const merged = [...recent];
+  for (const model of listed) {
+    if (!recentIds.has(model.id)) {
+      merged.push(model);
+    }
+  }
   return normalize(merged);
 };
 
@@ -254,11 +412,93 @@ export const resolveProviderForModel = async (model: string | undefined): Promis
 };
 
 export const runProviderPrompt = async (
-  providerId: ProviderId,
+  providerId: ProviderId | string,
   options: Omit<RunPromptOptions, 'onEvent'>,
   onEvent: (event: SessionEvent) => void,
   onSessionId?: (sessionId: string) => void
 ): Promise<RunPromptResult> => {
+  // Route Google prompts through our standalone Gemini REST implementation
+  if (providerId === 'google') {
+    const result = await runGooglePrompt(
+      {
+        prompt: options.prompt,
+        system: options.system,
+        model: options.model,
+        resumeSessionId: options.resumeSessionId,
+        signal: options.signal,
+      },
+      (googleEvent) => {
+        // Map GoogleSessionEvent → SessionEvent shape expected by runner
+        if (googleEvent.type === 'delta') {
+          onEvent({ type: 'delta', text: googleEvent.text ?? '' } as SessionEvent);
+        } else if (googleEvent.type === 'final') {
+          onSessionId?.(googleEvent.sessionId ?? '');
+          onEvent({
+            type: 'final',
+            cancelled: googleEvent.cancelled ?? false,
+          } as SessionEvent);
+        } else if (googleEvent.type === 'summary') {
+          onEvent({
+            type: 'summary',
+            summary: googleEvent.summary ?? '',
+            source: 'prompt',
+          } as SessionEvent);
+        } else if (googleEvent.type === 'usage') {
+          onEvent({
+            type: 'usage',
+            usage: {
+              input_tokens: googleEvent.usage?.input_tokens,
+              output_tokens: googleEvent.usage?.output_tokens,
+              total_tokens: googleEvent.usage?.total_tokens,
+            },
+          } as unknown as SessionEvent);
+        } else if (googleEvent.type === 'error') {
+          onEvent({ type: 'error', message: googleEvent.message ?? 'Gemini error' } as SessionEvent);
+        }
+      }
+    );
+    return result;
+  }
+  if (providerId === 'maitrix') {
+    const result = await runMaitrixPrompt(
+      {
+        prompt: options.prompt,
+        system: options.system,
+        model: options.model,
+        resumeSessionId: options.resumeSessionId,
+        signal: options.signal,
+      },
+      (maitrixEvent) => {
+        if (maitrixEvent.type === 'delta') {
+          onEvent({ type: 'delta', text: maitrixEvent.text ?? '' } as SessionEvent);
+        } else if (maitrixEvent.type === 'final') {
+          onSessionId?.(maitrixEvent.sessionId ?? '');
+          onEvent({
+            type: 'final',
+            cancelled: maitrixEvent.cancelled ?? false,
+          } as SessionEvent);
+        } else if (maitrixEvent.type === 'summary') {
+          onEvent({
+            type: 'summary',
+            summary: maitrixEvent.summary ?? '',
+            source: 'prompt',
+          } as SessionEvent);
+        } else if (maitrixEvent.type === 'usage') {
+          onEvent({
+            type: 'usage',
+            usage: {
+              input_tokens: maitrixEvent.usage?.input_tokens,
+              output_tokens: maitrixEvent.usage?.output_tokens,
+              total_tokens: maitrixEvent.usage?.total_tokens,
+            },
+          } as unknown as SessionEvent);
+        } else if (maitrixEvent.type === 'error') {
+          onEvent({ type: 'error', message: maitrixEvent.message ?? 'Maitrix error' } as SessionEvent);
+        }
+      }
+    );
+    return result;
+  }
   const summaryWaitMs = 10000;
   const sessionId = options.resumeSessionId ?? null;
   const signal = options.signal;
@@ -422,5 +662,14 @@ export const runProviderPrompt = async (
 };
 
 export const cancelSession = async (sessionId: string): Promise<void> => {
+  // Google and Maitrix sessions are managed locally — just clear the context
+  if (sessionId.startsWith('google-')) {
+    clearGoogleSession(sessionId);
+    return;
+  }
+  if (sessionId.startsWith('maitrix-')) {
+    clearMaitrixSession(sessionId);
+    return;
+  }
   await request('acp.sessions.cancel', { sessionId });
 };

@@ -248,6 +248,42 @@ const commandDefinitions: CommandDefinition[] = [
     },
   },
   {
+    id: 'create-agent-google',
+    title: 'Create Gemini Agent',
+    icon: providerIcons.google,
+    handler: (context, handlers, args) => {
+      void context;
+      const placement = getPlacementFromArgs(args);
+      if ('error' in placement) {
+        return { ok: false, error: placement.error };
+      }
+      return handlers.createAgent(
+        'google',
+        placement.x,
+        placement.y,
+        getOptionalStringFromArgs(args, 'attachedFolderId')
+      );
+    },
+  },
+  {
+    id: 'create-agent-maitrix',
+    title: 'Create Maitrix Agent',
+    icon: providerIcons.maitrix,
+    handler: (context, handlers, args) => {
+      void context;
+      const placement = getPlacementFromArgs(args);
+      if ('error' in placement) {
+        return { ok: false, error: placement.error };
+      }
+      return handlers.createAgent(
+        'maitrix',
+        placement.x,
+        placement.y,
+        getOptionalStringFromArgs(args, 'attachedFolderId')
+      );
+    },
+  },
+  {
     id: 'create-folder',
     title: 'Create Folder',
     icon: entityIcons.folder,

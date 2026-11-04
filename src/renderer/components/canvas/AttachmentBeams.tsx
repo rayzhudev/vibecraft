@@ -9,8 +9,12 @@ interface AttachmentBeamsProps {
 export default function AttachmentBeams({ agents, folders }: AttachmentBeamsProps) {
   const beams = agents
     .map((agent) => {
-      if (!agent.attachedFolderId) return null;
-      const folder = folders.find((entry) => entry.id === agent.attachedFolderId);
+      let targetFolderId = agent.attachedFolderId;
+      if (!targetFolderId && agent.movementIntent?.intentType === 'move+attach') {
+        targetFolderId = agent.movementIntent.targetId;
+      }
+      if (!targetFolderId) return null;
+      const folder = folders.find((entry) => entry.id === targetFolderId);
       if (!folder) return null;
       return {
         id: agent.id,
@@ -40,7 +44,15 @@ export default function AttachmentBeams({ agents, folders }: AttachmentBeamsProp
             x2={beam.to.x}
             y2={beam.to.y}
           />
-          <line className="attach-beam" x1={beam.from.x} y1={beam.from.y} x2={beam.to.x} y2={beam.to.y} />
+          <line
+            className="attach-beam"
+            x1={beam.from.x}
+            y1={beam.from.y}
+            x2={beam.to.x}
+            y2={beam.to.y}
+            data-testid="attach-beam"
+            data-agent-id={beam.id}
+          />
           <line
             className="attach-beam-core"
             x1={beam.from.x}

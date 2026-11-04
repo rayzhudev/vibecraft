@@ -6,7 +6,13 @@ import { workspaceClient } from '../../services/workspaceClient';
 import { useTheme } from '../../theme/themeContext';
 import { getAgentColorForSeed, resolveAgentPalette } from '../../utils/agentColors';
 import { getNextAgentName } from '../../utils/agentNames';
-import { distance, getAgentCenter, layoutAttachedAgents, resolveIncrementalAttachSlot } from './attachLayout';
+import {
+  distance,
+  findNearestFolderInGravity,
+  getAgentCenter,
+  layoutAttachedAgents,
+  resolveIncrementalAttachSlot,
+} from './attachLayout';
 import * as WORKSPACE_CONSTANTS from './constants';
 import type { DialogMessage } from './types';
 
@@ -464,6 +470,79 @@ export function useAgentManager({
     setActiveAgentTerminalId(agent.id);
     return okResult();
   };
+
+  const autoRepairRanRef = useRef<string | null>(null);
+
+  // Optional: auto-repair dangling agent attachments when entering a workspace (once per workspace load).
+  useEffect(() => {
+    const shouldAutoRepair =
+      typeof window !== 'undefined' &&
+      window.localStorage.getItem('vibecraft:auto-repair-attachments') === 'on';
+    if (!shouldAutoRepair) return;
+    if (autoRepairRanRef.current === workspacePath) return;
+    if (agents.length === 0 || folders.length === 0) return;
+    autoRepairRanRef.current = workspacePath;
+
+    const currentWorkspacePath = workspacePath;
+    const safeAgents = agents.filter((agent) => Number.isFinite(agent.x) && Number.isFinite(agent.y));
+    const agentsToFix = safeAgents.filter((agent) => !agent.attachedFolderId);
+    if (agentsToFix.length === 0) return;
+
+    const foldersById = new Map(folders.map((f) => [f.id, f]));
+    const updates: Array<{ id: string; attachedFolderId: string }> = [];
+
+    agentsToFix.forEach((agent) => {
+      const nearest = findNearestFolderInGravity({ x: agent.x, y: agent.y }, folders);
+      if (!nearest) return;
+      updates.push({ id: agent.id, attachedFolderId: nearest.id });
+    });
+
+    if (updates.length === 0) return;
+
+    const nextAgents = dedupeAgents(
+      agents.map((agent) => {
+        const update = updates.find((u) => u.id === agent.id);
+        if (!update) return agent;
+        const folder = foldersById.get(update.attachedFolderId);
+        if (!folder || !Number.isFinite(agent.x) || !Number.isFinite(agent.y)) {
+          return { ...agent, attachedFolderId: update.attachedFolderId };
+        }
+        const occupied = safeAgents.filter(
+          (entry) => entry.attachedFolderId === folder.id && entry.id !== agent.id
+        );
+        const slot = resolveIncrementalAttachSlot(folder, { x: agent.x, y: agent.y }, occupied);
+        return {
+          ...agent,
+          attachedFolderId: update.attachedFolderId,
+          x: slot?.position.x ?? agent.x,
+          y: slot?.position.y ?? agent.y,
+          status: agent.status === 'offline' ? 'online' : agent.status,
+        };
+      })
+    );
+
+    setAgents(nextAgents);
+
+    const repairPromises = updates.map(async (update) => {
+      const agent = nextAgents.find((a) => a.id === update.id);
+      if (!agent) return;
+      if (Number.isFinite(agent.x) && Number.isFinite(agent.y)) {
+        await workspaceClient.updateAgentPosition(currentWorkspacePath, agent.id, agent.x, agent.y);
+      }
+      const folder = foldersById.get(update.attachedFolderId);
+      if (folder) {
+        await workspaceClient.agentAttachToFolder({
+          workspacePath: currentWorkspacePath,
+          agentId: agent.id,
+          folderId: folder.id,
+          relativePath: folder.relativePath,
+        });
+      }
+    });
+    void Promise.all(repairPromises).catch((err) => {
+      console.error('Failed to persist auto-repaired agent attachments:', err);
+    });
+  }, [agents, folders, setAgents, workspacePath]);
 
   const clearAgentTerminalState = async (agentId: string) => {
     const result = await workspaceClient.clearAgentTerminalState(agentId);

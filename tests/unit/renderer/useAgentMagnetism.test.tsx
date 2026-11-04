@@ -17,6 +17,9 @@ function Harness({
   attachAgentToFolder,
   detachAgent,
   persistAgentPosition,
+  projectZones,
+  layoutActive,
+  focusModeActive,
   onReady,
 }: {
   initialAgents: Agent[];
@@ -28,6 +31,9 @@ function Harness({
   ) => Promise<{ ok: boolean }>;
   detachAgent?: (agentId: string) => Promise<{ ok: boolean }>;
   persistAgentPosition?: (id: string, x: number, y: number) => Promise<{ ok: boolean }>;
+  projectZones?: Array<{ folderId: string; color: string; x: number; y: number; w: number; h: number }>;
+  layoutActive?: boolean;
+  focusModeActive?: boolean;
   onReady: (controls: Controls) => void;
 }) {
   const [agents, setAgents] = useState<Agent[]>(initialAgents);
@@ -40,6 +46,9 @@ function Harness({
   const { handleAgentMoveBatch, handleAgentDragStart, handleAgentDragEnd } = useAgentMagnetism({
     agents,
     folders,
+    projectZones,
+    layoutActive,
+    focusModeActive,
     setAgents,
     persistAgentPosition: persistAgentPosition ?? (async () => ({ ok: true })),
     attachAgentToFolder: attachAgentToFolder ?? (async () => ({ ok: true })),
@@ -183,6 +192,70 @@ describe('useAgentMagnetism', () => {
       expect(attachCalls[0]?.agentId).toBe('agent-1');
       expect(attachCalls[0]?.folderId).toBe(folder.id);
       expect(persistCalls).toHaveLength(0);
+    });
+  });
+
+  it('preserves the user drop point when attaching through a project zone', async () => {
+    const folder: Folder = {
+      id: 'folder-1',
+      name: 'Folder',
+      relativePath: 'Folder',
+      kind: 'folder',
+      x: 100,
+      y: 100,
+      createdAt: Date.now(),
+    };
+    const attachCalls: Array<{ agentId: string; folderId: string; targetPos?: { x: number; y: number } }> =
+      [];
+    const initialAgents = [buildAgent('agent-1', 20, 20)];
+    let controls: Controls | null = null;
+
+    render(
+      <Harness
+        initialAgents={initialAgents}
+        folders={[folder]}
+        projectZones={[
+          {
+            folderId: folder.id,
+            color: '#63b3ed',
+            x: 200,
+            y: 300,
+            w: 240,
+            h: 220,
+          },
+        ]}
+        layoutActive
+        attachAgentToFolder={async (agentId, folderId, targetPos) => {
+          attachCalls.push({ agentId, folderId, targetPos });
+          return { ok: true };
+        }}
+        onReady={(next) => {
+          controls = next;
+        }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(controls).not.toBeNull();
+    });
+
+    const dropPos = { x: 280, y: 340 };
+
+    act(() => {
+      controls!.handleAgentDragStart('agent-1');
+      controls!.handleAgentDragEnd('agent-1', {
+        pos: dropPos,
+        dragDistance: 40,
+      });
+    });
+
+    await waitFor(() => {
+      expect(attachCalls).toHaveLength(1);
+      expect(attachCalls[0]).toEqual({
+        agentId: 'agent-1',
+        folderId: folder.id,
+        targetPos: dropPos,
+      });
     });
   });
 });
